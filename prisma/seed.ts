@@ -23,6 +23,15 @@ async function main() {
       value: "Automated iOS IPA distribution",
       type: "string",
     },
+    { key: "telegram_api_id", value: "", type: "string" },
+    { key: "telegram_api_hash", value: "", type: "string" },
+    { key: "telegram_phone", value: "", type: "string" },
+    { key: "github_token", value: "", type: "string" },
+    { key: "github_owner", value: "", type: "string" },
+    { key: "github_repo", value: "", type: "string" },
+    { key: "github_branch", value: "main", type: "string" },
+    { key: "appstore_country", value: "us", type: "string" },
+    { key: "temp_dir", value: "/tmp/ftrepo", type: "string" },
   ];
 
   for (const setting of defaultSettings) {

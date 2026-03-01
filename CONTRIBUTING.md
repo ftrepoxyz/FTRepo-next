@@ -1,4 +1,4 @@
-# Contributing to FTRepo-next
+# Contributing to FTRepo
 
 ## Prerequisites
 
@@ -19,8 +19,8 @@ The fastest way to get everything running.
 ### 1. Clone and configure
 
 ```bash
-git clone https://github.com/your-org/FTRepo-next.git
-cd FTRepo-next
+git clone https://github.com/your-org/FTRepo.git
+cd FTRepo
 cp .env.example .env
 ```
 
@@ -76,8 +76,8 @@ docker compose down -v     # stop and delete all data
 ### 1. Clone and install
 
 ```bash
-git clone https://github.com/your-org/FTRepo-next.git
-cd FTRepo-next
+git clone https://github.com/your-org/FTRepo.git
+cd FTRepo
 npm install
 ```
 

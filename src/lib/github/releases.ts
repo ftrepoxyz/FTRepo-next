@@ -1,25 +1,30 @@
 import { Octokit } from "@octokit/rest";
 import { readFileSync, statSync } from "fs";
 import { basename } from "path";
-import { getConfig } from "../config";
+import { getSettings } from "../config";
 
 let octokit: Octokit | null = null;
 
-function getOctokit(): Octokit {
+async function getOctokit(): Promise<Octokit> {
   if (!octokit) {
-    const token = getConfig().env.GITHUB_TOKEN;
+    const settings = await getSettings();
+    const token = settings.github_token;
     if (!token) throw new Error("GITHUB_TOKEN not configured");
     octokit = new Octokit({ auth: token });
   }
   return octokit;
 }
 
-function getRepoInfo() {
-  const config = getConfig();
-  const owner = config.env.GITHUB_OWNER;
-  const repo = config.env.GITHUB_REPO;
+async function getRepoInfo() {
+  const settings = await getSettings();
+  const owner = settings.github_owner;
+  const repo = settings.github_repo;
   if (!owner || !repo) throw new Error("GITHUB_OWNER and GITHUB_REPO must be configured");
   return { owner, repo };
+}
+
+export function invalidateGitHubClient(): void {
+  octokit = null;
 }
 
 /**
@@ -31,8 +36,8 @@ export async function createReleaseWithIpa(
   body: string,
   ipaPath: string
 ): Promise<{ releaseId: number; downloadUrl: string }> {
-  const ok = getOctokit();
-  const { owner, repo } = getRepoInfo();
+  const ok = await getOctokit();
+  const { owner, repo } = await getRepoInfo();
 
   // Create release
   const release = await ok.repos.createRelease({
@@ -75,8 +80,8 @@ export async function createReleaseWithIpa(
 export async function listReleases(): Promise<
   { id: number; tagName: string; name: string; createdAt: string; assets: { name: string; downloadUrl: string; size: number }[] }[]
 > {
-  const ok = getOctokit();
-  const { owner, repo } = getRepoInfo();
+  const ok = await getOctokit();
+  const { owner, repo } = await getRepoInfo();
 
   const releases = await ok.paginate(ok.repos.listReleases, {
     owner,
@@ -101,7 +106,7 @@ export async function listReleases(): Promise<
  * Delete a release by ID.
  */
 export async function deleteRelease(releaseId: number): Promise<void> {
-  const ok = getOctokit();
-  const { owner, repo } = getRepoInfo();
+  const ok = await getOctokit();
+  const { owner, repo } = await getRepoInfo();
   await ok.repos.deleteRelease({ owner, repo, release_id: releaseId });
 }

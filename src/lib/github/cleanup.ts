@@ -1,7 +1,7 @@
 import { prisma } from "../db";
 import { listReleases, deleteRelease } from "./releases";
 import { logger } from "../logger";
-import { getConfig } from "../config";
+import { getSettings } from "../config";
 
 interface CleanupResult {
   deletedReleases: number;
@@ -15,8 +15,8 @@ interface CleanupResult {
  * - Size-based: remove releases if total storage exceeds limit (optional)
  */
 export async function cleanupReleases(): Promise<CleanupResult> {
-  const config = getConfig();
-  const maxVersions = config.env.MAX_VERSIONS_PER_APP;
+  const settings = await getSettings();
+  const maxVersions = settings.max_versions_per_app;
   let deletedReleases = 0;
   let freedBytes = 0;
 

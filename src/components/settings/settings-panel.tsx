@@ -125,6 +125,7 @@ export function SettingsPanel() {
     <Tabs defaultValue="general">
       <TabsList>
         <TabsTrigger value="general">General</TabsTrigger>
+        <TabsTrigger value="integrations">Integrations</TabsTrigger>
         <TabsTrigger value="channels">Channels</TabsTrigger>
         <TabsTrigger value="actions">Admin Actions</TabsTrigger>
       </TabsList>
@@ -183,6 +184,16 @@ export function SettingsPanel() {
                 />
               </div>
               <div className="space-y-2">
+                <Label>Cleanup Interval (hours)</Label>
+                <Input
+                  type="number"
+                  value={String(settings.cleanup_interval_hours || 24)}
+                  onChange={(e) =>
+                    updateSetting("cleanup_interval_hours", Number(e.target.value))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
                 <Label>Max Versions Per App</Label>
                 <Input
                   type="number"
@@ -199,6 +210,24 @@ export function SettingsPanel() {
                   value={String(settings.log_retention_days || 30)}
                   onChange={(e) =>
                     updateSetting("log_retention_days", Number(e.target.value))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>App Store Country</Label>
+                <Input
+                  value={String(settings.appstore_country || "us")}
+                  onChange={(e) =>
+                    updateSetting("appstore_country", e.target.value)
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Temp Directory</Label>
+                <Input
+                  value={String(settings.temp_dir || "/tmp/ftrepo")}
+                  onChange={(e) =>
+                    updateSetting("temp_dir", e.target.value)
                   }
                 />
               </div>
@@ -224,6 +253,102 @@ export function SettingsPanel() {
                 <Switch
                   checked={settings.auto_cleanup === true}
                   onCheckedChange={(v) => updateSetting("auto_cleanup", v)}
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </TabsContent>
+
+      <TabsContent value="integrations" className="space-y-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Telegram</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>API ID</Label>
+                <Input
+                  type="password"
+                  value={String(settings.telegram_api_id || "")}
+                  onChange={(e) =>
+                    updateSetting("telegram_api_id", e.target.value)
+                  }
+                  placeholder="Enter Telegram API ID"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>API Hash</Label>
+                <Input
+                  type="password"
+                  value={String(settings.telegram_api_hash || "")}
+                  onChange={(e) =>
+                    updateSetting("telegram_api_hash", e.target.value)
+                  }
+                  placeholder="Enter Telegram API Hash"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Phone Number</Label>
+                <Input
+                  type="password"
+                  value={String(settings.telegram_phone || "")}
+                  onChange={(e) =>
+                    updateSetting("telegram_phone", e.target.value)
+                  }
+                  placeholder="Enter phone number"
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>GitHub</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Token</Label>
+                <Input
+                  type="password"
+                  value={String(settings.github_token || "")}
+                  onChange={(e) =>
+                    updateSetting("github_token", e.target.value)
+                  }
+                  placeholder="Enter GitHub token"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Owner</Label>
+                <Input
+                  value={String(settings.github_owner || "")}
+                  onChange={(e) =>
+                    updateSetting("github_owner", e.target.value)
+                  }
+                  placeholder="e.g., my-org"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Repository</Label>
+                <Input
+                  value={String(settings.github_repo || "")}
+                  onChange={(e) =>
+                    updateSetting("github_repo", e.target.value)
+                  }
+                  placeholder="e.g., my-repo"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Branch</Label>
+                <Input
+                  value={String(settings.github_branch || "main")}
+                  onChange={(e) =>
+                    updateSetting("github_branch", e.target.value)
+                  }
+                  placeholder="main"
                 />
               </div>
             </div>

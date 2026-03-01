@@ -1,12 +1,13 @@
 import { prisma } from "../db";
-import { getConfig } from "../config";
+import { getSettings } from "../config";
 import { logger } from "../logger";
 
 /**
  * Delete activity logs older than the configured retention period.
  */
 export async function cleanupOldLogs(): Promise<number> {
-  const retentionDays = getConfig().env.LOG_RETENTION_DAYS;
+  const settings = await getSettings();
+  const retentionDays = settings.log_retention_days;
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - retentionDays);
 

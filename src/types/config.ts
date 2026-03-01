@@ -93,3 +93,26 @@ export interface ScarletApp {
 }
 
 export interface FeatherApp extends AltStoreApp {}
+
+export interface FileConfig {
+  source: SourceConfig;
+  categories: CategoryConfig[];
+  news: NewsEntry[];
+}
+
+export interface AppSettings {
+  telegram_api_id: string;
+  telegram_api_hash: string;
+  telegram_phone: string;
+  github_token: string;
+  github_owner: string;
+  github_repo: string;
+  github_branch: string;
+  appstore_country: string;
+  scan_interval_minutes: number;
+  json_regen_interval_minutes: number;
+  cleanup_interval_hours: number;
+  max_versions_per_app: number;
+  temp_dir: string;
+  log_retention_days: number;
+}

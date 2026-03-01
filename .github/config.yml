@@ -4,7 +4,7 @@
 source:
   name: "FTRepo"
   subtitle: "iOS App Repository"
-  description: "Automated iOS IPA distribution powered by FTRepo-next"
+  description: "Automated iOS IPA distribution powered by FTRepo"
   iconURL: ""
   headerURL: ""
   website: ""

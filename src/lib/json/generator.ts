@@ -1,5 +1,5 @@
 import { prisma } from "../db";
-import { getConfig } from "../config";
+import { getSettings, getFileConfig } from "../config";
 import { logger } from "../logger";
 import { generateAltStoreJson } from "./altstore";
 import { generateESignJson } from "./esign";
@@ -22,8 +22,9 @@ export interface GenerationResult {
 export async function generateAllJson(
   publish: boolean = true
 ): Promise<GenerationResult> {
-  const config = getConfig();
-  const maxVersions = config.env.MAX_VERSIONS_PER_APP;
+  const settings = await getSettings();
+  const fileConfig = getFileConfig();
+  const maxVersions = settings.max_versions_per_app;
 
   // Get all non-corrupted IPAs with download URLs
   const ipas = await prisma.downloadedIpa.findMany({
@@ -39,16 +40,16 @@ export async function generateAllJson(
 
   await logger.info("generate", `Generating JSON for ${ipas.length} IPAs`);
 
-  const altstore = generateAltStoreJson(ipas, config, maxVersions);
-  const esign = generateESignJson(ipas, config);
-  const scarlet = generateScarletJson(ipas, config);
-  const feather = generateFeatherJson(ipas, config, maxVersions);
+  const altstore = generateAltStoreJson(ipas, fileConfig, maxVersions);
+  const esign = generateESignJson(ipas, fileConfig);
+  const scarlet = generateScarletJson(ipas, fileConfig);
+  const feather = generateFeatherJson(ipas, fileConfig, maxVersions);
 
   // Count unique apps
   const uniqueBundles = new Set(ipas.map((i) => i.bundleId));
 
   let published = false;
-  if (publish && config.env.GITHUB_TOKEN) {
+  if (publish && settings.github_token) {
     try {
       await publishAllJsonFiles([
         { path: "store.json", content: altstore },

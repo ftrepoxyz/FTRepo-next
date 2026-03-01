@@ -82,7 +82,7 @@ export function Sidebar() {
       <div className="border-t border-border p-2">
         {!collapsed && (
           <p className="px-3 py-2 text-xs text-muted-foreground">
-            FTRepo-next v0.1.0
+            FTRepo v0.1.0
           </p>
         )}
       </div>

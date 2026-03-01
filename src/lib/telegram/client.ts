@@ -1,5 +1,5 @@
 import { createClient, configure, type Client } from "tdl";
-import { getConfig } from "../config";
+import { getSettings } from "../config";
 import { logger } from "../logger";
 
 export type { Client };
@@ -13,9 +13,9 @@ let client: Client | null = null;
 export async function getTelegramClient(): Promise<Client> {
   if (client) return client;
 
-  const config = getConfig();
-  const apiId = config.env.TELEGRAM_API_ID;
-  const apiHash = config.env.TELEGRAM_API_HASH;
+  const settings = await getSettings();
+  const apiId = settings.telegram_api_id;
+  const apiHash = settings.telegram_api_hash;
 
   if (!apiId || !apiHash) {
     throw new Error("TELEGRAM_API_ID and TELEGRAM_API_HASH must be configured");

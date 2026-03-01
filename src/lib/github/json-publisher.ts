@@ -1,15 +1,20 @@
 import { Octokit } from "@octokit/rest";
-import { getConfig } from "../config";
+import { getSettings } from "../config";
 
 let octokit: Octokit | null = null;
 
-function getOctokit(): Octokit {
+async function getOctokit(): Promise<Octokit> {
   if (!octokit) {
-    const token = getConfig().env.GITHUB_TOKEN;
+    const settings = await getSettings();
+    const token = settings.github_token;
     if (!token) throw new Error("GITHUB_TOKEN not configured");
     octokit = new Octokit({ auth: token });
   }
   return octokit;
+}
+
+export function invalidateGitHubClient(): void {
+  octokit = null;
 }
 
 /**
@@ -20,11 +25,11 @@ export async function publishJsonFile(
   content: string,
   commitMessage: string
 ): Promise<void> {
-  const ok = getOctokit();
-  const config = getConfig();
-  const owner = config.env.GITHUB_OWNER!;
-  const repo = config.env.GITHUB_REPO!;
-  const branch = config.env.GITHUB_BRANCH;
+  const ok = await getOctokit();
+  const settings = await getSettings();
+  const owner = settings.github_owner;
+  const repo = settings.github_repo;
+  const branch = settings.github_branch;
 
   // Check if file exists to get its SHA
   let sha: string | undefined;

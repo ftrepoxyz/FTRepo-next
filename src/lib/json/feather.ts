@@ -1,5 +1,5 @@
 import { DownloadedIpa } from "@prisma/client";
-import { AppConfig } from "../config";
+import { FileConfig } from "@/types/config";
 import { generateAltStoreJson } from "./altstore";
 
 /**
@@ -8,7 +8,7 @@ import { generateAltStoreJson } from "./altstore";
  */
 export function generateFeatherJson(
   ipas: DownloadedIpa[],
-  config: AppConfig,
+  config: FileConfig,
   maxVersions: number
 ): string {
   // Feather uses the same format as AltStore

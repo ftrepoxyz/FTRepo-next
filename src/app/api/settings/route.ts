@@ -1,5 +1,15 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { invalidateSettingsCache } from "@/lib/config";
+
+const SENSITIVE_KEYS = new Set([
+  "telegram_api_id",
+  "telegram_api_hash",
+  "telegram_phone",
+  "github_token",
+]);
+
+const MASK = "••••••••";
 
 export async function GET() {
   try {
@@ -9,6 +19,11 @@ export async function GET() {
 
     const result: Record<string, string | number | boolean> = {};
     for (const s of settings) {
+      if (SENSITIVE_KEYS.has(s.key) && s.value) {
+        result[s.key] = MASK;
+        continue;
+      }
+
       switch (s.type) {
         case "number":
           result[s.key] = parseFloat(s.value);
@@ -42,6 +57,9 @@ export async function PUT(request: Request) {
     const body = (await request.json()) as Record<string, string | number | boolean>;
 
     for (const [key, value] of Object.entries(body)) {
+      // Skip updates where value equals the mask placeholder
+      if (value === MASK) continue;
+
       const type =
         typeof value === "number"
           ? "number"
@@ -55,6 +73,8 @@ export async function PUT(request: Request) {
         create: { key, value: String(value), type },
       });
     }
+
+    invalidateSettingsCache();
 
     return NextResponse.json({
       success: true,

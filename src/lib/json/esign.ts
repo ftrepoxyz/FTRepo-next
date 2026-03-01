@@ -1,5 +1,5 @@
 import { DownloadedIpa } from "@prisma/client";
-import { AppConfig } from "../config";
+import { FileConfig } from "@/types/config";
 
 interface ESignRepo {
   name: string;
@@ -27,7 +27,7 @@ interface ESignApp {
  */
 export function generateESignJson(
   ipas: DownloadedIpa[],
-  config: AppConfig
+  config: FileConfig
 ): string {
   // Keep only the latest version per bundle ID
   const latestByBundle = getLatestPerBundle(ipas);

@@ -6,7 +6,7 @@ import { cleanupReleases } from "../src/lib/github/cleanup";
 import { cleanupOldLogs } from "../src/lib/cleanup/logs";
 import { cleanupCaches } from "../src/lib/cleanup/cache";
 import { scheduleTask, stopAllTasks } from "../src/lib/pipeline/scheduler";
-import { getTelegramChannels, getConfig } from "../src/lib/config";
+import { getTelegramChannels, getSettings } from "../src/lib/config";
 import { logger } from "../src/lib/logger";
 import type { Client as TdlClient } from "tdl";
 
@@ -15,8 +15,8 @@ let running = true;
 async function main() {
   await logger.info("system", "FTRepo worker starting...");
 
-  const config = getConfig();
-  const channels = getTelegramChannels();
+  const settings = await getSettings();
+  const channels = await getTelegramChannels();
 
   if (channels.length === 0) {
     await logger.warn("system", "No Telegram channels configured. Worker will idle.");
@@ -57,7 +57,7 @@ async function main() {
         await scanChannel(client, channel);
       }
     },
-    config.env.SCAN_INTERVAL_MINUTES
+    settings.scan_interval_minutes
   );
 
   scheduleTask(
@@ -65,7 +65,7 @@ async function main() {
     async () => {
       await generateAllJson(true);
     },
-    config.env.JSON_REGEN_INTERVAL_MINUTES
+    settings.json_regen_interval_minutes
   );
 
   scheduleTask(
@@ -75,7 +75,7 @@ async function main() {
       await cleanupOldLogs();
       await cleanupCaches();
     },
-    config.env.CLEANUP_INTERVAL_HOURS * 60
+    settings.cleanup_interval_hours * 60
   );
 
   // Run initial scan

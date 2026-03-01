@@ -1,6 +1,5 @@
 import { DownloadedIpa } from "@prisma/client";
-import { AltStoreApp, AltStoreVersion } from "@/types/config";
-import { AppConfig } from "../config";
+import { AltStoreApp, AltStoreVersion, FileConfig, NewsEntry } from "@/types/config";
 
 interface AltStoreRepo {
   name: string;
@@ -12,7 +11,7 @@ interface AltStoreRepo {
   tintColor: string;
   featuredApps: string[];
   apps: AltStoreApp[];
-  news: AppConfig["news"];
+  news: NewsEntry[];
 }
 
 /**
@@ -21,7 +20,7 @@ interface AltStoreRepo {
  */
 export function generateAltStoreJson(
   ipas: DownloadedIpa[],
-  config: AppConfig,
+  config: FileConfig,
   maxVersions: number
 ): string {
   const grouped = groupByBundleId(ipas);

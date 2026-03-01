@@ -1,6 +1,6 @@
 import type { Client as TdlClient } from "tdl";
 import { mkdirSync, existsSync } from "fs";
-import { getConfig } from "../config";
+import { getSettings } from "../config";
 import { logger } from "../logger";
 
 const MAX_CONCURRENT_DOWNLOADS = 3;
@@ -15,7 +15,8 @@ export async function downloadFile(
   fileId: number,
   fileName: string
 ): Promise<string> {
-  const tempDir = getConfig().env.TEMP_DIR;
+  const settings = await getSettings();
+  const tempDir = settings.temp_dir;
   if (!existsSync(tempDir)) {
     mkdirSync(tempDir, { recursive: true });
   }

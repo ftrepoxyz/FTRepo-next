@@ -17,48 +17,25 @@ services:
       retries: 5
 
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/ftrepoxyz/ftrepo-app:latest
     restart: unless-stopped
     ports:
       - "3000:3000"
     environment:
       DATABASE_URL: postgresql://ftrepo:ftrepo@db:5432/ftrepo?schema=public
-      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
-      GITHUB_OWNER: ${GITHUB_OWNER:-}
-      GITHUB_REPO: ${GITHUB_REPO:-}
-      GITHUB_BRANCH: ${GITHUB_BRANCH:-main}
-      APPSTORE_COUNTRY: ${APPSTORE_COUNTRY:-us}
-      MAX_VERSIONS_PER_APP: ${MAX_VERSIONS_PER_APP:-5}
-      TEMP_DIR: /tmp/ftrepo
-      LOG_RETENTION_DAYS: ${LOG_RETENTION_DAYS:-30}
+      # All other settings (GitHub, Telegram, intervals, etc.) are now
+      # configured via the Settings UI and stored in the database.
     depends_on:
       db:
         condition: service_healthy
 
   worker:
-    build:
-      context: .
-      dockerfile: Dockerfile.worker
+    image: ghcr.io/ftrepoxyz/ftrepo-worker:latest
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://ftrepo:ftrepo@db:5432/ftrepo?schema=public
-      TELEGRAM_API_ID: ${TELEGRAM_API_ID:-}
-      TELEGRAM_API_HASH: ${TELEGRAM_API_HASH:-}
-      TELEGRAM_PHONE: ${TELEGRAM_PHONE:-}
-      TELEGRAM_CHANNELS: ${TELEGRAM_CHANNELS:-}
-      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
-      GITHUB_OWNER: ${GITHUB_OWNER:-}
-      GITHUB_REPO: ${GITHUB_REPO:-}
-      GITHUB_BRANCH: ${GITHUB_BRANCH:-main}
-      APPSTORE_COUNTRY: ${APPSTORE_COUNTRY:-us}
-      SCAN_INTERVAL_MINUTES: ${SCAN_INTERVAL_MINUTES:-30}
-      JSON_REGEN_INTERVAL_MINUTES: ${JSON_REGEN_INTERVAL_MINUTES:-60}
-      CLEANUP_INTERVAL_HOURS: ${CLEANUP_INTERVAL_HOURS:-24}
-      MAX_VERSIONS_PER_APP: ${MAX_VERSIONS_PER_APP:-5}
-      TEMP_DIR: /tmp/ftrepo
-      LOG_RETENTION_DAYS: ${LOG_RETENTION_DAYS:-30}
+      # All other settings (GitHub, Telegram, intervals, etc.) are now
+      # configured via the Settings UI and stored in the database.
     volumes:
       - tdlib-data:/app/tdlib-data
       - temp-downloads:/tmp/ftrepo

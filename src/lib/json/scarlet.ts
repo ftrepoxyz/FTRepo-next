@@ -1,5 +1,5 @@
 import { DownloadedIpa } from "@prisma/client";
-import { AppConfig } from "../config";
+import { FileConfig } from "@/types/config";
 
 interface ScarletRepo {
   META: {
@@ -30,7 +30,7 @@ interface ScarletApp {
  */
 export function generateScarletJson(
   ipas: DownloadedIpa[],
-  config: AppConfig
+  config: FileConfig
 ): string {
   const latestByBundle = getLatestPerBundle(ipas);
   const rgbColor = hexToRgbFloats(config.source.tintColor);
