@@ -1,0 +1,23 @@
+FROM node:20-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libssl3 \
+    zlib1g \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN npm ci --ignore-scripts
+COPY prisma ./prisma/
+RUN npx prisma generate
+
+COPY . .
+
+ENV NODE_ENV=production
+
+# TDLib session data persisted via volume mount
+VOLUME ["/app/tdlib-data", "/tmp/ftrepo"]
+
+CMD ["npx", "tsx", "worker/index.ts"]

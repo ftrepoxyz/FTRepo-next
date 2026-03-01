@@ -1,0 +1,22 @@
+# FTRepo Source Configuration
+# This file defines metadata for your sideloading repository
+
+source:
+  name: "FTRepo"
+  subtitle: "iOS App Repository"
+  description: "Automated iOS IPA distribution powered by FTRepo-next"
+  iconURL: ""
+  headerURL: ""
+  website: ""
+  tintColor: "#5C7AEA"
+  featuredApps: []
+
+# App categories for Scarlet format
+categories:
+  - name: "Tweaked"
+    id: "tweaked"
+  - name: "Other"
+    id: "other"
+
+# News entries for AltStore format
+news: []

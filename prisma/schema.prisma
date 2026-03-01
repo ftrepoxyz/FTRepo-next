@@ -1,0 +1,141 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model ProcessedMessage {
+  id        Int      @id @default(autoincrement())
+  channelId String   @map("channel_id")
+  messageId Int      @map("message_id")
+  hasIpa    Boolean  @default(false) @map("has_ipa")
+  fileName  String?  @map("file_name")
+  fileSize  BigInt?  @map("file_size")
+  status    String   @default("pending") // pending, downloading, processing, completed, failed, skipped
+  error     String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([channelId, messageId])
+  @@index([status])
+  @@index([channelId])
+  @@map("processed_messages")
+}
+
+model DownloadedIpa {
+  id              Int      @id @default(autoincrement())
+  bundleId        String   @map("bundle_id")
+  appName         String   @map("app_name")
+  version         String
+  buildNumber     String?  @map("build_number")
+  minOsVersion    String?  @map("min_os_version")
+  fileName        String   @map("file_name")
+  fileSize        BigInt   @map("file_size")
+  iconUrl         String?  @map("icon_url")
+  screenshotUrls  Json?    @map("screenshot_urls") // string[]
+  description     String?
+  developerName   String?  @map("developer_name")
+  tweaks          Json?    // string[] - detected dylib names
+  isTweaked       Boolean  @default(false) @map("is_tweaked")
+  entitlements    Json?    // Record<string, string>
+  privacyInfo     Json?    @map("privacy_info") // Record<string, string>
+  githubReleaseId Int?     @map("github_release_id")
+  githubAssetUrl  String?  @map("github_asset_url")
+  downloadUrl     String?  @map("download_url")
+  downloadCount   Int      @default(0) @map("download_count")
+  channelId       String?  @map("channel_id")
+  messageId       Int?     @map("message_id")
+  isCorrupted     Boolean  @default(false) @map("is_corrupted")
+  corruptionNote  String?  @map("corruption_note")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([bundleId])
+  @@index([appName])
+  @@index([channelId])
+  @@map("downloaded_ipas")
+}
+
+model AppStoreCache {
+  id         Int      @id @default(autoincrement())
+  bundleId   String   @unique @map("bundle_id")
+  appName    String?  @map("app_name")
+  iconUrl    String?  @map("icon_url")
+  screenshots Json?   // string[]
+  description String?
+  developer  String?
+  genre      String?
+  price      Float?
+  rating     Float?
+  data       Json?    // full API response
+  fetchedAt  DateTime @default(now()) @map("fetched_at")
+  expiresAt  DateTime @map("expires_at")
+
+  @@map("appstore_cache")
+}
+
+model SystemMetric {
+  id        Int      @id @default(autoincrement())
+  metric    String   // total_ipas, total_downloads, storage_used, etc.
+  value     Float
+  metadata  Json?
+  recordedAt DateTime @default(now()) @map("recorded_at")
+
+  @@index([metric])
+  @@index([recordedAt])
+  @@map("system_metrics")
+}
+
+model ActivityLog {
+  id        Int      @id @default(autoincrement())
+  type      String   // scan, download, process, upload, cleanup, generate, error
+  message   String
+  status    String   @default("info") // info, success, warning, error
+  details   Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([type])
+  @@index([status])
+  @@index([createdAt])
+  @@map("activity_log")
+}
+
+model ChannelProgress {
+  id             Int      @id @default(autoincrement())
+  channelId      String   @unique @map("channel_id")
+  channelName    String?  @map("channel_name")
+  lastMessageId  Int      @default(0) @map("last_message_id")
+  totalMessages  Int      @default(0) @map("total_messages")
+  ipaCount       Int      @default(0) @map("ipa_count")
+  isActive       Boolean  @default(true) @map("is_active")
+  lastScannedAt  DateTime? @map("last_scanned_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("channel_progress")
+}
+
+model PrivacyDescriptionCache {
+  id          Int      @id @default(autoincrement())
+  key         String   @unique // e.g., NSCameraUsageDescription
+  description String
+  usageCount  Int      @default(1) @map("usage_count")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("privacy_description_cache")
+}
+
+model Setting {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique
+  value     String
+  type      String   @default("string") // string, number, boolean, json
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("settings")
+}
