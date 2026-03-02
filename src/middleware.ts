@@ -6,6 +6,14 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const hasSession = request.cookies.has("ftrepo_session");
 
+  // Root path: public for guests, redirect to dashboard for authenticated users
+  if (pathname === "/") {
+    if (hasSession) {
+      return NextResponse.redirect(new URL("/dashboard", request.url));
+    }
+    return NextResponse.next();
+  }
+
   const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
 
   if (!hasSession && !isPublic) {
