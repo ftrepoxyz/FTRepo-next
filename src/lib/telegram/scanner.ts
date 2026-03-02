@@ -8,7 +8,8 @@ import { logger } from "../logger";
  */
 export async function scanChannel(
   client: TdlClient,
-  channelId: string
+  channelId: string,
+  messageLimit: number = 0
 ): Promise<{ newMessages: number; ipaMessages: number }> {
   let newMessages = 0;
   let ipaMessages = 0;
@@ -39,14 +40,19 @@ export async function scanChannel(
     // Get channel message history starting from last known position
     let fromMessageId = Number(progress.lastMessageId);
     let hasMore = true;
+    let totalScanned = 0;
+    const batchSize = messageLimit > 0 ? Math.min(100, messageLimit) : 100;
 
     while (hasMore) {
+      const fetchLimit = messageLimit > 0 ? Math.min(batchSize, messageLimit - totalScanned) : 100;
+      if (messageLimit > 0 && fetchLimit <= 0) break;
+
       const history = (await client.invoke({
         _: "getChatHistory",
         chat_id: chat.id,
         from_message_id: fromMessageId,
         offset: 0,
-        limit: 100,
+        limit: fetchLimit,
         only_local: false,
       })) as { messages?: Array<{ id: number; content: { _: string; document?: { file_name?: string; document?: { size?: number; id?: number } } } }> };
 
@@ -55,6 +61,8 @@ export async function scanChannel(
         hasMore = false;
         break;
       }
+
+      totalScanned += messages.length;
 
       for (const msg of messages) {
         // Skip already processed
@@ -105,7 +113,8 @@ export async function scanChannel(
       if (lastMsg) {
         fromMessageId = lastMsg.id;
       }
-      hasMore = messages.length === 100; // More pages if we got a full batch
+      hasMore = messages.length === fetchLimit; // More pages if we got a full batch
+      if (messageLimit > 0 && totalScanned >= messageLimit) hasMore = false;
     }
 
     // Update channel progress

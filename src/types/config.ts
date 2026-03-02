@@ -115,4 +115,5 @@ export interface AppSettings {
   max_versions_per_app: number;
   temp_dir: string;
   log_retention_days: number;
+  scan_message_limit: number;
 }

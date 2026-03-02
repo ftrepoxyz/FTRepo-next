@@ -54,7 +54,7 @@ async function main() {
     "scan",
     async () => {
       for (const channel of channels) {
-        await scanChannel(client, channel);
+        await scanChannel(client, channel, settings.scan_message_limit);
       }
     },
     settings.scan_interval_minutes
@@ -81,7 +81,7 @@ async function main() {
   // Run initial scan
   await logger.info("system", "Running initial channel scan...");
   for (const channel of channels) {
-    await scanChannel(client, channel);
+    await scanChannel(client, channel, settings.scan_message_limit);
   }
 
   // Main processing loop

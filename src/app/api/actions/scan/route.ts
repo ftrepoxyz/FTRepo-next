@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { logger } from "@/lib/logger";
 import { withAuth } from "@/lib/auth";
 import { getTelegramClient } from "@/lib/telegram/client";
-import { getTelegramChannels } from "@/lib/config";
+import { getTelegramChannels, getSettings } from "@/lib/config";
 import { scanChannel } from "@/lib/telegram/scanner";
 import { startProcessing } from "@/lib/pipeline/orchestrator";
 
@@ -12,6 +12,7 @@ export const POST = withAuth(async () => {
 
     const client = await getTelegramClient();
     const channels = await getTelegramChannels();
+    const settings = await getSettings();
 
     if (channels.length === 0) {
       return NextResponse.json({
@@ -24,7 +25,7 @@ export const POST = withAuth(async () => {
     let totalIpa = 0;
 
     for (const channelId of channels) {
-      const { newMessages, ipaMessages } = await scanChannel(client, channelId);
+      const { newMessages, ipaMessages } = await scanChannel(client, channelId, settings.scan_message_limit);
       totalNew += newMessages;
       totalIpa += ipaMessages;
     }

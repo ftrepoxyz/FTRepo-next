@@ -91,6 +91,7 @@ const SETTINGS_DEFAULTS: Record<string, string> = {
   max_versions_per_app: "5",
   temp_dir: "/tmp/ftrepo",
   log_retention_days: "30",
+  scan_message_limit: "0",
 };
 
 let cachedSettings: AppSettings | null = null;
@@ -122,6 +123,7 @@ export async function getSettings(): Promise<AppSettings> {
     max_versions_per_app: dbMap.get("max_versions_per_app") ?? process.env.MAX_VERSIONS_PER_APP ?? SETTINGS_DEFAULTS.max_versions_per_app,
     temp_dir: dbMap.get("temp_dir") ?? process.env.TEMP_DIR ?? SETTINGS_DEFAULTS.temp_dir,
     log_retention_days: dbMap.get("log_retention_days") ?? process.env.LOG_RETENTION_DAYS ?? SETTINGS_DEFAULTS.log_retention_days,
+    scan_message_limit: dbMap.get("scan_message_limit") ?? process.env.SCAN_MESSAGE_LIMIT ?? SETTINGS_DEFAULTS.scan_message_limit,
   };
 
   function num(key: string): number {
@@ -143,6 +145,7 @@ export async function getSettings(): Promise<AppSettings> {
     cleanup_interval_hours: num("cleanup_interval_hours"),
     max_versions_per_app: num("max_versions_per_app"),
     log_retention_days: num("log_retention_days"),
+    scan_message_limit: num("scan_message_limit"),
   };
 
   cachedSettings = settings;
