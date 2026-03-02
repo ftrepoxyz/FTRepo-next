@@ -5,7 +5,7 @@ import { logger } from "../logger";
 import { extractIpa } from "../ipa/extractor";
 import { cachePrivacyDescriptions } from "../ipa/privacy";
 import { getCachedLookup } from "../appstore/cache";
-import { createReleaseWithIpa } from "../github/releases";
+import { uploadIpaToDailyRelease } from "../github/releases";
 import { claimNextPending, markCompleted, markFailed } from "./queue";
 import { downloadIpaFromMessage } from "../telegram/downloader";
 import { getTelegramClient } from "../telegram/client";
@@ -67,22 +67,21 @@ export async function processNextIpa(
     // Step 4: App Store lookup
     const appStoreData = await getCachedLookup(metadata.bundleId);
 
-    // Step 5: Upload to GitHub Releases
+    // Step 5: Upload to GitHub Releases (grouped by date)
     let releaseId: number | undefined;
+    let assetId: number | undefined;
     let downloadUrl: string | undefined;
     try {
-      const tagName = `${metadata.bundleId}-${metadata.version}-${Date.now()}`;
-      const releaseName = `${metadata.appName} v${metadata.version}`;
-      const body = [
-        `**${metadata.appName}** v${metadata.version}`,
-        metadata.isTweaked ? `Tweaks: ${metadata.tweaks.join(", ")}` : "",
-        `Bundle ID: ${metadata.bundleId}`,
-      ]
-        .filter(Boolean)
-        .join("\n");
-
-      const result = await createReleaseWithIpa(tagName, releaseName, body, tempPath);
+      const result = await uploadIpaToDailyRelease(
+        metadata.appName,
+        metadata.version,
+        metadata.bundleId,
+        metadata.isTweaked,
+        metadata.tweaks,
+        tempPath
+      );
       releaseId = result.releaseId;
+      assetId = result.assetId;
       downloadUrl = result.downloadUrl;
     } catch (e) {
       await logger.warn("process", `GitHub upload failed for ${metadata.appName}, saving without download URL`, {
@@ -109,6 +108,7 @@ export async function processNextIpa(
         entitlements: metadata.entitlements,
         privacyInfo: metadata.privacyInfo,
         githubReleaseId: releaseId,
+        githubAssetId: assetId,
         githubAssetUrl: downloadUrl,
         downloadUrl,
         channelId: entry.channelId,

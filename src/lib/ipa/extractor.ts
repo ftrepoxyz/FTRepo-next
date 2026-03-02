@@ -32,14 +32,20 @@ export async function extractIpa(ipaPath: string): Promise<ExtractedIpa> {
   const plistBuffer = await extractFileFromZip(ipaPath, appDirMatch.fileName);
   const plistData = parsePlist(plistBuffer);
 
-  // Find all dylib/framework paths for tweak detection
-  const dylibPaths = zipEntries
-    .filter(
-      (e) =>
-        e.fileName.startsWith(appDir) &&
-        (e.fileName.endsWith(".dylib") || e.fileName.includes(".framework/"))
-    )
+  // Find standalone .dylib files and unique .framework names for tweak detection
+  const dylibFiles = zipEntries
+    .filter((e) => e.fileName.startsWith(appDir) && e.fileName.endsWith(".dylib"))
     .map((e) => e.fileName.replace(appDir, ""));
+
+  const frameworkSet = new Set<string>();
+  for (const e of zipEntries) {
+    if (!e.fileName.startsWith(appDir)) continue;
+    const relative = e.fileName.replace(appDir, "");
+    const match = relative.match(/([^/]+\.framework)\//);
+    if (match) frameworkSet.add(match[1]);
+  }
+
+  const dylibPaths = [...dylibFiles, ...Array.from(frameworkSet)];
 
   const tweakData = detectTweaks(dylibPaths);
 

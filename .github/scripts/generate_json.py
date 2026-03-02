@@ -44,49 +44,114 @@ def get_releases(token, repo):
     return releases
 
 
+def parse_body_sections(body):
+    """Parse a daily release body into sections keyed by bundle ID.
+
+    Expected body format:
+        ### AppName vVersion
+        Bundle ID: com.example.app
+        Tweaks: TweakA, TweakB
+
+        ### AnotherApp v2.0
+        Bundle ID: com.example.other
+    """
+    sections = {}
+    current = None
+
+    for line in body.split("\n"):
+        line = line.strip()
+        if line.startswith("### "):
+            # New section: ### AppName vVersion
+            header = line[4:]
+            app_name = header.split(" v")[0] if " v" in header else header
+            current = {"app_name": app_name, "is_tweaked": False}
+        elif line.startswith("Bundle ID: ") and current:
+            bundle_id = line[len("Bundle ID: "):]
+            sections[bundle_id] = current
+        elif line.startswith("Tweaks: ") and current:
+            current["is_tweaked"] = True
+
+    return sections
+
+
 def parse_release(release):
-    """Extract app metadata from a release."""
+    """Extract app metadata from a release. Returns a list of apps (one per IPA asset)."""
     tag = release.get("tag_name", "")
     name = release.get("name", tag)
     body = release.get("body", "")
     created = release.get("created_at", "")
 
-    # Try to extract bundle ID and version from tag (format: bundleid-version-timestamp)
-    parts = tag.rsplit("-", 2)
-    if len(parts) >= 2:
-        bundle_id = parts[0]
-        version = parts[1] if len(parts) >= 2 else "1.0"
-    else:
-        bundle_id = tag
-        version = "1.0"
-
-    # Get IPA asset
     assets = release.get("assets", [])
-    ipa_asset = None
-    for asset in assets:
-        if asset["name"].lower().endswith(".ipa"):
-            ipa_asset = asset
-            break
+    ipa_assets = [a for a in assets if a["name"].lower().endswith(".ipa")]
 
-    if not ipa_asset:
-        return None
+    if not ipa_assets:
+        return []
 
-    # Extract app name from release name or body
-    app_name = name.split(" v")[0] if " v" in name else name
+    # Check if this is a daily grouped release (tag is YYYY-MM-DD)
+    is_daily = bool(re.match(r"^\d{4}-\d{2}-\d{2}$", tag))
 
-    # Check for tweaked indicator
-    is_tweaked = "tweak" in body.lower() or "tweak" in name.lower()
+    if is_daily:
+        sections = parse_body_sections(body)
 
-    return {
-        "bundle_id": bundle_id,
-        "app_name": app_name,
-        "version": version,
-        "size": ipa_asset.get("size", 0),
-        "download_url": ipa_asset.get("browser_download_url", ""),
-        "date": created[:10] if created else datetime.now().strftime("%Y-%m-%d"),
-        "description": body or f"{app_name} v{version}",
-        "is_tweaked": is_tweaked,
-    }
+        apps = []
+        for ipa_asset in ipa_assets:
+            # Asset name format: bundleId_version.ipa
+            asset_name = ipa_asset["name"]
+            asset_stem = asset_name.rsplit(".", 1)[0]  # Remove .ipa
+            parts = asset_stem.rsplit("_", 1)
+            if len(parts) == 2:
+                bundle_id = parts[0]
+                version = parts[1]
+            else:
+                bundle_id = asset_stem
+                version = "1.0"
+
+            # Find matching section in body
+            section = sections.get(bundle_id, {})
+            app_name = section.get("app_name", bundle_id)
+            is_tweaked = section.get("is_tweaked", False)
+
+            description = f"**{app_name}** v{version}"
+            if is_tweaked:
+                description += " (Tweaked)"
+            description += f"\nBundle ID: {bundle_id}"
+
+            apps.append({
+                "bundle_id": bundle_id,
+                "app_name": app_name,
+                "version": version,
+                "size": ipa_asset.get("size", 0),
+                "download_url": ipa_asset.get("browser_download_url", ""),
+                "date": created[:10] if created else datetime.now().strftime("%Y-%m-%d"),
+                "description": description,
+                "is_tweaked": is_tweaked,
+            })
+
+        return apps
+    else:
+        # Legacy format: one IPA per release, tag = bundleId-version-timestamp
+        parts = tag.rsplit("-", 2)
+        if len(parts) >= 2:
+            bundle_id = parts[0]
+            version = parts[1] if len(parts) >= 2 else "1.0"
+        else:
+            bundle_id = tag
+            version = "1.0"
+
+        ipa_asset = ipa_assets[0]
+        app_name = name.split(" v")[0] if " v" in name else name
+        is_tweaked = "tweak" in body.lower() or "tweak" in name.lower()
+
+        return [{
+            "bundle_id": bundle_id,
+            "app_name": app_name,
+            "version": version,
+            "size": ipa_asset.get("size", 0),
+            "download_url": ipa_asset.get("browser_download_url", ""),
+            "date": created[:10] if created else datetime.now().strftime("%Y-%m-%d"),
+            "description": body or f"{app_name} v{version}",
+            "is_tweaked": is_tweaked,
+        }]
 
 
 def group_by_bundle(apps):
@@ -241,8 +306,7 @@ def main():
     apps = []
     for release in releases:
         parsed = parse_release(release)
-        if parsed:
-            apps.append(parsed)
+        apps.extend(parsed)
 
     print(f"Parsed {len(apps)} apps with IPA assets")
 

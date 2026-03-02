@@ -43,6 +43,7 @@ model DownloadedIpa {
   entitlements    Json?    // Record<string, string>
   privacyInfo     Json?    @map("privacy_info") // Record<string, string>
   githubReleaseId Int?     @map("github_release_id")
+  githubAssetId   Int?     @map("github_asset_id")
   githubAssetUrl  String?  @map("github_asset_url")
   downloadUrl     String?  @map("download_url")
   downloadCount   Int      @default(0) @map("download_count")

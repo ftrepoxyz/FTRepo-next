@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import { usePolling } from "@/hooks/use-polling";
 import { formatDistanceToNow } from "date-fns";
-import { Search, ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
+import { Search, ChevronLeft, ChevronRight, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 
 interface IpaEntry {
   id: number;
@@ -49,20 +49,52 @@ function formatBytes(bytes: number): string {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
 }
 
+type SortField = "appName" | "bundleId" | "version" | "fileSize" | "createdAt";
+
+function SortHeader({ label, field, sortBy, sortOrder, onSort }: {
+  label: string;
+  field: SortField;
+  sortBy: SortField;
+  sortOrder: "asc" | "desc";
+  onSort: (field: SortField) => void;
+}) {
+  const Icon = sortBy !== field ? ArrowUpDown : sortOrder === "asc" ? ArrowUp : ArrowDown;
+  return (
+    <button className="flex items-center gap-1 hover:text-foreground" onClick={() => onSort(field)}>
+      {label}
+      <Icon className="h-3 w-3" />
+    </button>
+  );
+}
+
 export function IpaTable() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [sortBy, setSortBy] = useState<SortField>("createdAt");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [selected, setSelected] = useState<IpaEntry | null>(null);
+
+  const handleSort = (field: SortField) => {
+    if (field === sortBy) {
+      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+    } else {
+      setSortBy(field);
+      setSortOrder("desc");
+    }
+    setPage(1);
+  };
 
   const fetcher = useCallback(async () => {
     const params = new URLSearchParams({
       page: String(page),
       pageSize: "20",
+      sortBy,
+      sortOrder,
       ...(search && { search }),
     });
     const res = await fetch(`/api/database?${params}`);
     return res.json();
-  }, [page, search]);
+  }, [page, search, sortBy, sortOrder]);
 
   const { data, loading } = usePolling(fetcher, 30000);
   const ipas: IpaEntry[] = data?.data || [];
@@ -89,12 +121,12 @@ export function IpaTable() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>App</TableHead>
-              <TableHead>Bundle ID</TableHead>
-              <TableHead>Version</TableHead>
-              <TableHead>Size</TableHead>
+              <TableHead><SortHeader label="App" field="appName" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} /></TableHead>
+              <TableHead><SortHeader label="Bundle ID" field="bundleId" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} /></TableHead>
+              <TableHead><SortHeader label="Version" field="version" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} /></TableHead>
+              <TableHead><SortHeader label="Size" field="fileSize" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} /></TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Added</TableHead>
+              <TableHead><SortHeader label="Added" field="createdAt" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} /></TableHead>
               <TableHead />
             </TableRow>
           </TableHeader>

@@ -11,9 +11,10 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { usePolling } from "@/hooks/use-polling";
 import { formatDistanceToNow } from "date-fns";
-import { RotateCw, Trash2, SkipForward } from "lucide-react";
+import { RotateCw, Trash2, SkipForward, Search, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { toast } from "sonner";
 
 interface QueueEntry {
@@ -49,17 +50,57 @@ const statusVariant = (status: string): "default" | "destructive" | "secondary" 
   }
 };
 
+type SortField = "fileName" | "channelId" | "fileSize" | "status" | "createdAt";
+
+function SortHeader({ label, field, sortBy, sortOrder, onSort }: {
+  label: string;
+  field: SortField;
+  sortBy: SortField;
+  sortOrder: "asc" | "desc";
+  onSort: (field: SortField) => void;
+}) {
+  const Icon = sortBy !== field ? ArrowUpDown : sortOrder === "asc" ? ArrowUp : ArrowDown;
+  return (
+    <button className="flex items-center gap-1 hover:text-foreground" onClick={() => onSort(field)}>
+      {label}
+      <Icon className="h-3 w-3" />
+    </button>
+  );
+}
+
 export function QueueTable() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [sortBy, setSortBy] = useState<SortField>("createdAt");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+
+  const handleSort = (field: SortField) => {
+    if (field === sortBy) {
+      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+    } else {
+      setSortBy(field);
+      setSortOrder("desc");
+    }
+    setPage(1);
+  };
 
   const fetcher = useCallback(async () => {
-    const res = await fetch("/api/queue?pageSize=50");
+    const params = new URLSearchParams({
+      page: String(page),
+      pageSize: "20",
+      sortBy,
+      sortOrder,
+      ...(search && { search }),
+    });
+    const res = await fetch(`/api/queue?${params}`);
     return res.json();
-  }, []);
+  }, [page, search, sortBy, sortOrder]);
 
   const { data, refresh } = usePolling(fetcher, 10000);
   const items: QueueEntry[] = data?.data || [];
   const stats = data?.stats || {};
+  const totalPages: number = data?.totalPages || 1;
 
   const handleRetry = async (id: number) => {
     await fetch("/api/queue/retry", {
@@ -94,6 +135,21 @@ export function QueueTable() {
 
   return (
     <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search by filename..."
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
+            className="pl-9"
+          />
+        </div>
+      </div>
+
       <div className="flex items-center gap-4">
         <div className="flex gap-2 text-sm">
           <Badge variant="outline">Pending: {stats.pending ?? 0}</Badge>
@@ -144,12 +200,12 @@ export function QueueTable() {
                   }}
                 />
               </TableHead>
-              <TableHead>File</TableHead>
-              <TableHead>Channel</TableHead>
-              <TableHead>Size</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead><SortHeader label="File" field="fileName" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} /></TableHead>
+              <TableHead><SortHeader label="Channel" field="channelId" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} /></TableHead>
+              <TableHead><SortHeader label="Size" field="fileSize" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} /></TableHead>
+              <TableHead><SortHeader label="Status" field="status" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} /></TableHead>
               <TableHead>Error</TableHead>
-              <TableHead>Time</TableHead>
+              <TableHead><SortHeader label="Time" field="createdAt" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} /></TableHead>
               <TableHead />
             </TableRow>
           </TableHeader>
@@ -207,6 +263,30 @@ export function QueueTable() {
             )}
           </TableBody>
         </Table>
+      </div>
+
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">
+          Page {page} of {totalPages}
+        </p>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setPage(Math.max(1, page - 1))}
+            disabled={page <= 1}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setPage(Math.min(totalPages, page + 1))}
+            disabled={page >= totalPages}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
     </div>
   );

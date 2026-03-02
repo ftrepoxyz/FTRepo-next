@@ -1,5 +1,5 @@
 import { prisma } from "../db";
-import { listReleases, deleteRelease } from "./releases";
+import { deleteReleaseAsset, getRelease, deleteRelease } from "./releases";
 import { logger } from "../logger";
 import { getSettings } from "../config";
 
@@ -10,9 +10,8 @@ interface CleanupResult {
 
 /**
  * Clean up old GitHub releases based on configured limits.
- * - Version-based: keep only N versions per app
- * - Age-based: remove releases older than N days (optional)
- * - Size-based: remove releases if total storage exceeds limit (optional)
+ * Deletes individual assets from daily grouped releases, then removes
+ * any releases that have no remaining IPA assets.
  */
 export async function cleanupReleases(): Promise<CleanupResult> {
   const settings = await getSettings();
@@ -33,13 +32,31 @@ export async function cleanupReleases(): Promise<CleanupResult> {
       grouped.set(ipa.bundleId, list);
     }
 
-    // Version-based cleanup
+    // Track release IDs that had assets removed, so we can check if they're empty
+    const affectedReleaseIds = new Set<number>();
+
+    // Version-based cleanup: remove excess versions per app
     for (const [bundleId, ipas] of grouped) {
       if (ipas.length <= maxVersions) continue;
 
       const toRemove = ipas.slice(maxVersions);
       for (const ipa of toRemove) {
-        if (ipa.githubReleaseId) {
+        // Delete the individual asset if we have an asset ID
+        if (ipa.githubAssetId) {
+          try {
+            await deleteReleaseAsset(ipa.githubAssetId);
+            freedBytes += Number(ipa.fileSize);
+            deletedReleases++;
+            if (ipa.githubReleaseId) {
+              affectedReleaseIds.add(ipa.githubReleaseId);
+            }
+          } catch (e) {
+            await logger.warn("cleanup", `Failed to delete asset for ${bundleId}@${ipa.version}`, {
+              error: String(e),
+            });
+          }
+        } else if (ipa.githubReleaseId) {
+          // Legacy: no asset ID stored, delete the entire release
           try {
             await deleteRelease(ipa.githubReleaseId);
             freedBytes += Number(ipa.fileSize);
@@ -55,6 +72,24 @@ export async function cleanupReleases(): Promise<CleanupResult> {
       }
 
       await logger.info("cleanup", `Cleaned up ${toRemove.length} old versions of ${bundleId}`);
+    }
+
+    // Clean up empty releases (daily releases with no remaining IPA assets)
+    for (const releaseId of affectedReleaseIds) {
+      try {
+        const release = await getRelease(releaseId);
+        if (!release) continue;
+
+        const hasIpaAssets = release.assets.some((a) => a.name.toLowerCase().endsWith(".ipa"));
+        if (!hasIpaAssets) {
+          await deleteRelease(releaseId);
+          await logger.info("cleanup", `Deleted empty release ${releaseId}`);
+        }
+      } catch (e) {
+        await logger.warn("cleanup", `Failed to check/delete empty release ${releaseId}`, {
+          error: String(e),
+        });
+      }
     }
 
     if (deletedReleases > 0) {

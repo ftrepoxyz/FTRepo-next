@@ -30,42 +30,80 @@ const APPLE_DYLIB_NAMES = new Set([
   "libswiftRegexBuilder.dylib",
 ]);
 
+// Known jailbreak/tweak-related frameworks (indicators that the app is tweaked)
+const KNOWN_TWEAK_FRAMEWORKS = new Set([
+  "CydiaSubstrate",
+  "CepheiPrefs",
+  "Cephei",
+  "CepheiUI",
+  "substrate",
+  "Alderis",
+  "AltList",
+  "libhdev",
+  "RocketBootstrap",
+  "AppList",
+  "Flipswitch",
+  "TechSupport",
+  "Orion",
+]);
+
 export interface TweakDetectionResult {
   isTweaked: boolean;
   tweaks: string[];
   dylibPaths: string[];
 }
 
+/**
+ * Detect tweaks from a list of dylib files and framework names.
+ *
+ * Input paths are either:
+ * - Standalone .dylib files (e.g., "Frameworks/BHTwitter.dylib")
+ * - Framework names (e.g., "CydiaSubstrate.framework")
+ *
+ * Tweak names are derived from standalone .dylib files only, since
+ * framework names can't reliably distinguish tweaks from legitimate SDKs.
+ * Known jailbreak frameworks (CydiaSubstrate, Cephei, etc.) are used
+ * as additional signals for the isTweaked flag.
+ */
 export function detectTweaks(dylibPaths: string[]): TweakDetectionResult {
-  const injectedDylibs: string[] = [];
+  const tweakNames: string[] = [];
+  const injectedPaths: string[] = [];
+  let hasKnownTweakFramework = false;
 
   for (const path of dylibPaths) {
+    // Handle framework names (e.g., "CydiaSubstrate.framework")
+    if (path.endsWith(".framework")) {
+      const name = path.replace(/\.framework$/, "");
+      if (KNOWN_TWEAK_FRAMEWORKS.has(name)) {
+        hasKnownTweakFramework = true;
+        injectedPaths.push(path);
+      }
+      continue;
+    }
+
+    // Handle .dylib files
+    const fileName = path.split("/").pop() || "";
+
     const isAppleFramework = APPLE_FRAMEWORK_PREFIXES.some((prefix) =>
       path.startsWith(prefix)
     );
-
-    const fileName = path.split("/").pop() || "";
     const isAppleDylib = APPLE_DYLIB_NAMES.has(fileName);
-
-    // Swift support libraries bundled in the app (not injected)
     const isSwiftSupport =
       path.includes("/Frameworks/libswift") ||
-      path.includes("/SwiftSupport/");
+      path.includes("/SwiftSupport/") ||
+      fileName.startsWith("libswift");
 
     if (!isAppleFramework && !isAppleDylib && !isSwiftSupport) {
-      injectedDylibs.push(path);
+      injectedPaths.push(path);
+      tweakNames.push(fileName.replace(/\.dylib$/, ""));
     }
   }
 
-  // Extract tweak names from paths
-  const tweakNames = injectedDylibs.map((path) => {
-    const fileName = path.split("/").pop() || path;
-    return fileName.replace(/\.dylib$/, "").replace(/\.framework$/, "");
-  });
+  const uniqueTweaks = [...new Set(tweakNames)];
 
   return {
-    isTweaked: injectedDylibs.length > 0,
-    tweaks: tweakNames,
-    dylibPaths: injectedDylibs,
+    isTweaked: uniqueTweaks.length > 0 || hasKnownTweakFramework,
+    tweaks: uniqueTweaks,
+    dylibPaths: injectedPaths,
   };
 }
