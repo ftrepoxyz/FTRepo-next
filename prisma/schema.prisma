@@ -10,7 +10,7 @@ datasource db {
 model ProcessedMessage {
   id        Int      @id @default(autoincrement())
   channelId String   @map("channel_id")
-  messageId Int      @map("message_id")
+  messageId BigInt   @map("message_id")
   hasIpa    Boolean  @default(false) @map("has_ipa")
   fileName  String?  @map("file_name")
   fileSize  BigInt?  @map("file_size")
@@ -47,7 +47,7 @@ model DownloadedIpa {
   downloadUrl     String?  @map("download_url")
   downloadCount   Int      @default(0) @map("download_count")
   channelId       String?  @map("channel_id")
-  messageId       Int?     @map("message_id")
+  messageId       BigInt?  @map("message_id")
   isCorrupted     Boolean  @default(false) @map("is_corrupted")
   corruptionNote  String?  @map("corruption_note")
   createdAt       DateTime @default(now()) @map("created_at")
@@ -107,7 +107,7 @@ model ChannelProgress {
   id             Int      @id @default(autoincrement())
   channelId      String   @unique @map("channel_id")
   channelName    String?  @map("channel_name")
-  lastMessageId  Int      @default(0) @map("last_message_id")
+  lastMessageId  BigInt   @default(0) @map("last_message_id")
   totalMessages  Int      @default(0) @map("total_messages")
   ipaCount       Int      @default(0) @map("ipa_count")
   isActive       Boolean  @default(true) @map("is_active")
@@ -138,4 +138,29 @@ model Setting {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("settings")
+}
+
+model User {
+  id           Int       @id @default(autoincrement())
+  username     String    @unique
+  passwordHash String    @map("password_hash")
+  role         String    @default("admin") // all approved users are admin
+  approved     Boolean   @default(false)
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  sessions     Session[]
+
+  @@map("users")
+}
+
+model Session {
+  id        Int      @id @default(autoincrement())
+  token     String   @unique
+  userId    Int      @map("user_id")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
 }

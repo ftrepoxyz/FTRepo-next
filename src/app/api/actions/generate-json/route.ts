@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { generateAllJson } from "@/lib/json/generator";
+import { withAuth } from "@/lib/auth";
 
-export async function POST() {
+export const POST = withAuth(async () => {
   try {
     const result = await generateAllJson(true);
 
@@ -19,4 +20,4 @@ export async function POST() {
       { status: 500 }
     );
   }
-}
+});

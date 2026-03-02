@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { withAuth } from "@/lib/auth";
 
-export async function GET(request: Request) {
+export const GET = withAuth(async (request) => {
   try {
     const url = new URL(request.url);
     const page = Math.max(1, parseInt(url.searchParams.get("page") || "1"));
@@ -52,9 +53,9 @@ export async function GET(request: Request) {
       { status: 500 }
     );
   }
-}
+});
 
-export async function PUT(request: Request) {
+export const PUT = withAuth(async (request) => {
   try {
     const body = await request.json();
     const { id, ...updates } = body;
@@ -71,16 +72,25 @@ export async function PUT(request: Request) {
       data: updates,
     });
 
-    return NextResponse.json({ success: true, data: ipa });
+    return NextResponse.json({
+      success: true,
+      data: {
+        ...ipa,
+        fileSize: Number(ipa.fileSize),
+        messageId: ipa.messageId != null ? Number(ipa.messageId) : null,
+        createdAt: ipa.createdAt.toISOString(),
+        updatedAt: ipa.updatedAt.toISOString(),
+      },
+    });
   } catch (e) {
     return NextResponse.json(
       { success: false, error: String(e) },
       { status: 500 }
     );
   }
-}
+});
 
-export async function DELETE(request: Request) {
+export const DELETE = withAuth(async (request) => {
   try {
     const url = new URL(request.url);
     const id = parseInt(url.searchParams.get("id") || "");
@@ -104,4 +114,4 @@ export async function DELETE(request: Request) {
       { status: 500 }
     );
   }
-}
+});

@@ -37,7 +37,7 @@ export async function scanChannel(
     }
 
     // Get channel message history starting from last known position
-    let fromMessageId = progress.lastMessageId;
+    let fromMessageId = Number(progress.lastMessageId);
     let hasMore = true;
 
     while (hasMore) {

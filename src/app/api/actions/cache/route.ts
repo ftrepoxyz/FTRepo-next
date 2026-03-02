@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { clearAllCache, clearExpiredCache } from "@/lib/appstore/cache";
+import { withAuth } from "@/lib/auth";
 
-export async function DELETE() {
+export const DELETE = withAuth(async () => {
   try {
     const cleared = await clearAllCache();
     return NextResponse.json({
@@ -15,9 +16,9 @@ export async function DELETE() {
       { status: 500 }
     );
   }
-}
+});
 
-export async function POST() {
+export const POST = withAuth(async () => {
   try {
     const cleared = await clearExpiredCache();
     return NextResponse.json({
@@ -31,4 +32,4 @@ export async function POST() {
       { status: 500 }
     );
   }
-}
+});

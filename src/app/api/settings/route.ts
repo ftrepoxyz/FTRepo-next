@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { invalidateSettingsCache } from "@/lib/config";
+import { withAuth } from "@/lib/auth";
 
 const SENSITIVE_KEYS = new Set([
   "telegram_api_id",
@@ -11,7 +12,7 @@ const SENSITIVE_KEYS = new Set([
 
 const MASK = "••••••••";
 
-export async function GET() {
+export const GET = withAuth(async () => {
   try {
     const settings = await prisma.setting.findMany({
       orderBy: { key: "asc" },
@@ -50,9 +51,9 @@ export async function GET() {
       { status: 500 }
     );
   }
-}
+});
 
-export async function PUT(request: Request) {
+export const PUT = withAuth(async (request) => {
   try {
     const body = (await request.json()) as Record<string, string | number | boolean>;
 
@@ -86,4 +87,4 @@ export async function PUT(request: Request) {
       { status: 500 }
     );
   }
-}
+});

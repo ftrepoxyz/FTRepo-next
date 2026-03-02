@@ -16,7 +16,14 @@ import {
   Database,
   Plus,
   X,
+  Loader2,
+  CheckCircle2,
+  AlertCircle,
+  Plug,
+  Unplug,
+  Play,
 } from "lucide-react";
+import { UsersTab } from "@/components/settings/users-tab";
 
 interface Channel {
   id: number;
@@ -30,24 +37,53 @@ export function SettingsPanel() {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [newChannel, setNewChannel] = useState("");
   const [loading, setLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState<{ role: string } | null>(null);
+  const [telegramAuth, setTelegramAuth] = useState<{
+    state: string;
+    error: string | null;
+    passwordHint: string;
+  }>({ state: "disconnected", error: null, passwordHint: "" });
+  const [authCode, setAuthCode] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authLoading, setAuthLoading] = useState(false);
+
+  const loadTelegramAuth = useCallback(async () => {
+    try {
+      const res = await fetch("/api/auth/telegram");
+      const data = await res.json();
+      if (data.success) {
+        setTelegramAuth({
+          state: data.state,
+          error: data.error,
+          passwordHint: data.passwordHint,
+        });
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
 
   const loadData = useCallback(async () => {
     try {
-      const [settingsRes, channelsRes] = await Promise.all([
+      const [settingsRes, channelsRes, meRes] = await Promise.all([
         fetch("/api/settings"),
         fetch("/api/channels"),
+        fetch("/api/auth/me"),
       ]);
       const settingsData = await settingsRes.json();
       const channelsData = await channelsRes.json();
+      const meData = await meRes.json();
 
       if (settingsData.success) setSettings(settingsData.data);
       if (channelsData.success) setChannels(channelsData.data);
+      if (meData.success) setCurrentUser(meData.user);
     } catch {
       toast.error("Failed to load settings");
     } finally {
       setLoading(false);
     }
-  }, []);
+    loadTelegramAuth();
+  }, [loadTelegramAuth]);
 
   useEffect(() => {
     loadData();
@@ -64,6 +100,39 @@ export function SettingsPanel() {
       toast.success("Setting updated");
     } catch {
       toast.error("Failed to update setting");
+    }
+  };
+
+  const telegramAuthAction = async (
+    action: string,
+    body?: Record<string, string>
+  ) => {
+    setAuthLoading(true);
+    try {
+      const res = await fetch("/api/auth/telegram", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, ...body }),
+      });
+      const data = await res.json();
+      setTelegramAuth({
+        state: data.state,
+        error: data.error,
+        passwordHint: data.passwordHint,
+      });
+      if (data.state === "ready") {
+        toast.success("Telegram connected");
+        setAuthCode("");
+        setAuthPassword("");
+      } else if (data.state === "disconnected") {
+        toast.success("Telegram disconnected");
+      } else if (data.error) {
+        toast.error(data.error);
+      }
+    } catch {
+      toast.error("Failed to communicate with Telegram");
+    } finally {
+      setAuthLoading(false);
     }
   };
 
@@ -128,6 +197,9 @@ export function SettingsPanel() {
         <TabsTrigger value="integrations">Integrations</TabsTrigger>
         <TabsTrigger value="channels">Channels</TabsTrigger>
         <TabsTrigger value="actions">Admin Actions</TabsTrigger>
+        {currentUser?.role === "admin" && (
+          <TabsTrigger value="users">Users</TabsTrigger>
+        )}
       </TabsList>
 
       <TabsContent value="general" className="space-y-4">
@@ -297,9 +369,133 @@ export function SettingsPanel() {
                   onChange={(e) =>
                     updateSetting("telegram_phone", e.target.value)
                   }
-                  placeholder="Enter phone number"
+                  placeholder="Enter phone number (e.g., +1234567890)"
                 />
               </div>
+            </div>
+            <Separator />
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  {telegramAuth.state === "ready" ? (
+                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                  ) : telegramAuth.state === "connecting" ||
+                    telegramAuth.state === "waiting_code" ||
+                    telegramAuth.state === "waiting_password" ? (
+                    <Loader2 className="h-4 w-4 animate-spin text-yellow-500" />
+                  ) : telegramAuth.state === "error" ? (
+                    <AlertCircle className="h-4 w-4 text-red-500" />
+                  ) : (
+                    <AlertCircle className="h-4 w-4 text-muted-foreground" />
+                  )}
+                  <span className="text-sm font-medium">
+                    {telegramAuth.state === "ready"
+                      ? "Connected"
+                      : telegramAuth.state === "connecting"
+                        ? "Connecting..."
+                        : telegramAuth.state === "waiting_code"
+                          ? "Verification code sent"
+                          : telegramAuth.state === "waiting_password"
+                            ? "2FA password required"
+                            : telegramAuth.state === "error"
+                              ? "Connection failed"
+                              : "Not connected"}
+                  </span>
+                </div>
+                {telegramAuth.state === "ready" ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={authLoading}
+                    onClick={() => telegramAuthAction("disconnect")}
+                  >
+                    <Unplug className="mr-1 h-4 w-4" />
+                    Disconnect
+                  </Button>
+                ) : telegramAuth.state !== "waiting_code" &&
+                  telegramAuth.state !== "waiting_password" ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={authLoading}
+                    onClick={() => telegramAuthAction("connect")}
+                  >
+                    {authLoading ? (
+                      <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Plug className="mr-1 h-4 w-4" />
+                    )}
+                    Connect
+                  </Button>
+                ) : null}
+              </div>
+              {telegramAuth.state === "waiting_code" && (
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Enter verification code"
+                    value={authCode}
+                    onChange={(e) => setAuthCode(e.target.value)}
+                    onKeyDown={(e) =>
+                      e.key === "Enter" &&
+                      authCode &&
+                      telegramAuthAction("code", { code: authCode })
+                    }
+                  />
+                  <Button
+                    disabled={authLoading || !authCode}
+                    onClick={() =>
+                      telegramAuthAction("code", { code: authCode })
+                    }
+                  >
+                    {authLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      "Verify"
+                    )}
+                  </Button>
+                </div>
+              )}
+              {telegramAuth.state === "waiting_password" && (
+                <div className="space-y-2">
+                  {telegramAuth.passwordHint && (
+                    <p className="text-xs text-muted-foreground">
+                      Hint: {telegramAuth.passwordHint}
+                    </p>
+                  )}
+                  <div className="flex gap-2">
+                    <Input
+                      type="password"
+                      placeholder="Enter 2FA password"
+                      value={authPassword}
+                      onChange={(e) => setAuthPassword(e.target.value)}
+                      onKeyDown={(e) =>
+                        e.key === "Enter" &&
+                        authPassword &&
+                        telegramAuthAction("password", {
+                          password: authPassword,
+                        })
+                      }
+                    />
+                    <Button
+                      disabled={authLoading || !authPassword}
+                      onClick={() =>
+                        telegramAuthAction("password", {
+                          password: authPassword,
+                        })
+                      }
+                    >
+                      {authLoading ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        "Submit"
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              )}
+              {telegramAuth.error && (
+                <p className="text-xs text-red-500">{telegramAuth.error}</p>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -438,6 +634,14 @@ export function SettingsPanel() {
               <Button
                 variant="outline"
                 className="justify-start"
+                onClick={() => runAction("process")}
+              >
+                <Play className="mr-2 h-4 w-4" />
+                Process Queue
+              </Button>
+              <Button
+                variant="outline"
+                className="justify-start"
                 onClick={() => runAction("generate-json")}
               >
                 <FileJson className="mr-2 h-4 w-4" />
@@ -463,6 +667,11 @@ export function SettingsPanel() {
           </CardContent>
         </Card>
       </TabsContent>
+      {currentUser?.role === "admin" && (
+        <TabsContent value="users" className="space-y-4">
+          <UsersTab />
+        </TabsContent>
+      )}
     </Tabs>
   );
 }

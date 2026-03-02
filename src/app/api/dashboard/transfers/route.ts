@@ -16,7 +16,7 @@ export async function GET() {
       data: active.map((t) => ({
         id: t.id,
         channelId: t.channelId,
-        messageId: t.messageId,
+        messageId: Number(t.messageId),
         fileName: t.fileName,
         fileSize: t.fileSize ? Number(t.fileSize) : null,
         status: t.status,

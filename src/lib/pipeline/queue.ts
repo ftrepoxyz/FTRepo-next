@@ -4,7 +4,7 @@ import { logger } from "../logger";
 export interface QueueEntry {
   id: number;
   channelId: string;
-  messageId: number;
+  messageId: number; // converted from BigInt for TDLib compat
   fileName: string;
   fileSize: bigint;
 }
@@ -30,7 +30,7 @@ export async function claimNextPending(): Promise<QueueEntry | null> {
     return {
       id: pending.id,
       channelId: pending.channelId,
-      messageId: pending.messageId,
+      messageId: Number(pending.messageId),
       fileName: pending.fileName || "unknown.ipa",
       fileSize: pending.fileSize || BigInt(0),
     };

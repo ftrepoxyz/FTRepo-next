@@ -3,13 +3,14 @@
 import { useEffect, useState, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, Moon, Sun } from "lucide-react";
+import { RefreshCw, Moon, Sun, LogOut } from "lucide-react";
 
 export function Header() {
   const [status, setStatus] = useState<"healthy" | "unhealthy" | "loading">(
     "loading"
   );
   const [dark, setDark] = useState(false);
+  const [username, setUsername] = useState<string | null>(null);
 
   const checkHealth = useCallback(async () => {
     try {
@@ -27,6 +28,13 @@ export function Header() {
   }, [checkHealth]);
 
   useEffect(() => {
+    fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((d) => { if (d.success) setUsername(d.user.username); })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
     const isDark = document.documentElement.classList.contains("dark");
     setDark(isDark);
   }, []);
@@ -34,6 +42,11 @@ export function Header() {
   const toggleDark = () => {
     document.documentElement.classList.toggle("dark");
     setDark(!dark);
+  };
+
+  const handleLogout = async () => {
+    await fetch("/api/auth/logout", { method: "POST" });
+    window.location.href = "/login";
   };
 
   return (
@@ -68,6 +81,14 @@ export function Header() {
             <Moon className="h-4 w-4" />
           )}
         </Button>
+        {username && (
+          <>
+            <span className="text-sm text-muted-foreground">{username}</span>
+            <Button variant="ghost" size="icon" onClick={handleLogout} title="Log out">
+              <LogOut className="h-4 w-4" />
+            </Button>
+          </>
+        )}
       </div>
     </header>
   );

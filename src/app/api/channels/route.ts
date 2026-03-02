@@ -1,7 +1,23 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { withAuth } from "@/lib/auth";
+import type { ChannelProgress } from "@prisma/client";
 
-export async function GET() {
+function serializeChannel(c: ChannelProgress) {
+  return {
+    id: c.id,
+    channelId: c.channelId,
+    channelName: c.channelName,
+    isActive: c.isActive,
+    lastMessageId: Number(c.lastMessageId),
+    totalMessages: c.totalMessages,
+    ipaCount: c.ipaCount,
+    lastScannedAt: c.lastScannedAt?.toISOString() ?? null,
+    createdAt: c.createdAt.toISOString(),
+  };
+}
+
+export const GET = withAuth(async () => {
   try {
     const channels = await prisma.channelProgress.findMany({
       orderBy: { channelId: "asc" },
@@ -9,17 +25,7 @@ export async function GET() {
 
     return NextResponse.json({
       success: true,
-      data: channels.map((c) => ({
-        id: c.id,
-        channelId: c.channelId,
-        channelName: c.channelName,
-        isActive: c.isActive,
-        lastMessageId: c.lastMessageId,
-        totalMessages: c.totalMessages,
-        ipaCount: c.ipaCount,
-        lastScannedAt: c.lastScannedAt?.toISOString(),
-        createdAt: c.createdAt.toISOString(),
-      })),
+      data: channels.map(serializeChannel),
     });
   } catch (e) {
     return NextResponse.json(
@@ -27,9 +33,9 @@ export async function GET() {
       { status: 500 }
     );
   }
-}
+});
 
-export async function POST(request: Request) {
+export const POST = withAuth(async (request) => {
   try {
     const body = await request.json();
     const { channelId, channelName } = body;
@@ -48,16 +54,16 @@ export async function POST(request: Request) {
       },
     });
 
-    return NextResponse.json({ success: true, data: channel }, { status: 201 });
+    return NextResponse.json({ success: true, data: serializeChannel(channel) }, { status: 201 });
   } catch (e) {
     return NextResponse.json(
       { success: false, error: String(e) },
       { status: 500 }
     );
   }
-}
+});
 
-export async function PUT(request: Request) {
+export const PUT = withAuth(async (request) => {
   try {
     const body = await request.json();
     const { channelId, isActive, channelName } = body;
@@ -77,16 +83,16 @@ export async function PUT(request: Request) {
       },
     });
 
-    return NextResponse.json({ success: true, data: channel });
+    return NextResponse.json({ success: true, data: serializeChannel(channel) });
   } catch (e) {
     return NextResponse.json(
       { success: false, error: String(e) },
       { status: 500 }
     );
   }
-}
+});
 
-export async function DELETE(request: Request) {
+export const DELETE = withAuth(async (request) => {
   try {
     const url = new URL(request.url);
     const channelId = url.searchParams.get("channelId");
@@ -110,4 +116,4 @@ export async function DELETE(request: Request) {
       { status: 500 }
     );
   }
-}
+});

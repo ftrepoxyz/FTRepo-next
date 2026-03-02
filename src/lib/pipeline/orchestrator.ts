@@ -8,6 +8,12 @@ import { getCachedLookup } from "../appstore/cache";
 import { createReleaseWithIpa } from "../github/releases";
 import { claimNextPending, markCompleted, markFailed } from "./queue";
 import { downloadIpaFromMessage } from "../telegram/downloader";
+import { getTelegramClient } from "../telegram/client";
+import { getTelegramChannels } from "../config";
+
+const globalForProcessing = globalThis as unknown as {
+  queueProcessing: boolean | undefined;
+};
 
 /**
  * Main processing pipeline:
@@ -129,4 +135,58 @@ export async function processNextIpa(
   }
 
   return true;
+}
+
+/**
+ * Start processing the queue in the background.
+ * Resolves channel chat IDs, then processes pending items until the queue is empty.
+ * Only one instance runs at a time (guarded by global flag).
+ */
+export async function startProcessing(): Promise<void> {
+  if (globalForProcessing.queueProcessing) return;
+  globalForProcessing.queueProcessing = true;
+
+  try {
+    const client = await getTelegramClient();
+    const channels = await getTelegramChannels();
+
+    // Build channel → TDLib chat ID map
+    const chatIdMap = new Map<string, number>();
+    for (const channelId of channels) {
+      try {
+        const chat = (await client.invoke({
+          _: "searchPublicChat",
+          username: channelId.replace("@", ""),
+        })) as { _: string; id: number } | null;
+        if (chat && chat._ === "chat") {
+          chatIdMap.set(channelId, chat.id);
+        }
+      } catch (e) {
+        await logger.warn("process", `Could not resolve channel ${channelId}`, {
+          error: String(e),
+        });
+      }
+    }
+
+    if (chatIdMap.size === 0) {
+      await logger.warn("process", "No channels resolved, skipping processing");
+      return;
+    }
+
+    await logger.info("process", `Queue processor started, ${chatIdMap.size} channel(s) resolved`);
+
+    // Process until queue is empty
+    while (await processNextIpa(client, chatIdMap)) {
+      // Brief pause between items to avoid overwhelming resources
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+
+    await logger.info("process", "Queue processor finished — no more pending items");
+  } catch (e) {
+    await logger.error("process", "Queue processor failed", {
+      error: String(e),
+    });
+  } finally {
+    globalForProcessing.queueProcessing = false;
+  }
 }

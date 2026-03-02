@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getQueueStats } from "@/lib/pipeline/queue";
+import { withAuth } from "@/lib/auth";
 
-export async function GET(request: Request) {
+export const GET = withAuth(async (request) => {
   try {
     const url = new URL(request.url);
     const status = url.searchParams.get("status");
@@ -30,7 +31,7 @@ export async function GET(request: Request) {
       data: items.map((item) => ({
         id: item.id,
         channelId: item.channelId,
-        messageId: item.messageId,
+        messageId: Number(item.messageId),
         fileName: item.fileName,
         fileSize: item.fileSize ? Number(item.fileSize) : null,
         status: item.status,
@@ -50,4 +51,4 @@ export async function GET(request: Request) {
       { status: 500 }
     );
   }
-}
+});
