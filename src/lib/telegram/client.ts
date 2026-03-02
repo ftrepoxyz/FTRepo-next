@@ -219,6 +219,12 @@ export async function submitAuthPassword(password: string): Promise<void> {
 
 export async function getTelegramClient(): Promise<Client> {
   const mgr = getManager();
+
+  // Auto-reconnect using existing session if state was lost (e.g. server restart)
+  if (mgr.state === "disconnected") {
+    await startTelegramAuth();
+  }
+
   if (mgr.state !== "ready" || !mgr.client) {
     throw new Error(
       "Telegram is not connected. Go to Settings → Integrations to connect."

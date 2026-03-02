@@ -7,9 +7,24 @@ import {
   submitAuthPassword,
   closeTelegramClient,
 } from "@/lib/telegram/client";
+import { getSettings } from "@/lib/config";
 
 export const GET = withAuth(async () => {
-  const status = getTelegramAuthStatus();
+  let status = getTelegramAuthStatus();
+
+  // Auto-reconnect using existing session if credentials are configured
+  if (status.state === "disconnected") {
+    const settings = await getSettings();
+    if (
+      settings.telegram_api_id &&
+      settings.telegram_api_hash &&
+      settings.telegram_phone
+    ) {
+      await startTelegramAuth();
+      status = getTelegramAuthStatus();
+    }
+  }
+
   return NextResponse.json({ success: true, ...status });
 });
 

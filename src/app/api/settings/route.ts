@@ -4,9 +4,6 @@ import { invalidateSettingsCache } from "@/lib/config";
 import { withAuth } from "@/lib/auth";
 
 const SENSITIVE_KEYS = new Set([
-  "telegram_api_id",
-  "telegram_api_hash",
-  "telegram_phone",
   "github_token",
 ]);
 

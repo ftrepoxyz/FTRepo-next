@@ -342,7 +342,6 @@ export function SettingsPanel() {
               <div className="space-y-2">
                 <Label>API ID</Label>
                 <Input
-                  type="password"
                   value={String(settings.telegram_api_id || "")}
                   onChange={(e) =>
                     updateSetting("telegram_api_id", e.target.value)
@@ -353,7 +352,6 @@ export function SettingsPanel() {
               <div className="space-y-2">
                 <Label>API Hash</Label>
                 <Input
-                  type="password"
                   value={String(settings.telegram_api_hash || "")}
                   onChange={(e) =>
                     updateSetting("telegram_api_hash", e.target.value)
@@ -364,7 +362,6 @@ export function SettingsPanel() {
               <div className="space-y-2">
                 <Label>Phone Number</Label>
                 <Input
-                  type="password"
                   value={String(settings.telegram_phone || "")}
                   onChange={(e) =>
                     updateSetting("telegram_phone", e.target.value)
