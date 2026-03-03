@@ -2,6 +2,7 @@ import { prisma } from "../db";
 import { deleteReleaseAsset, getRelease, deleteRelease } from "./releases";
 import { logger } from "../logger";
 import { getSettings } from "../config";
+import { matchTweak } from "@/lib/ipa/tweak-matcher";
 
 interface CleanupResult {
   deletedReleases: number;
@@ -16,27 +17,30 @@ interface CleanupResult {
 export async function cleanupReleases(): Promise<CleanupResult> {
   const settings = await getSettings();
   const maxVersions = settings.max_versions_per_app;
+  const knownTweaks = settings.known_tweaks;
   let deletedReleases = 0;
   let freedBytes = 0;
 
   try {
-    // Get all IPAs grouped by bundleId
-    const ipasByBundle = await prisma.downloadedIpa.findMany({
+    // Get all IPAs grouped by composite key (bundleId::tweak)
+    const allIpas = await prisma.downloadedIpa.findMany({
       orderBy: [{ bundleId: "asc" }, { createdAt: "desc" }],
     });
 
-    const grouped = new Map<string, typeof ipasByBundle>();
-    for (const ipa of ipasByBundle) {
-      const list = grouped.get(ipa.bundleId) || [];
+    const grouped = new Map<string, typeof allIpas>();
+    for (const ipa of allIpas) {
+      const tweaks = (ipa.tweaks as string[]) || [];
+      const { groupKey } = matchTweak(ipa.bundleId, ipa.appName, tweaks, ipa.isTweaked, knownTweaks);
+      const list = grouped.get(groupKey) || [];
       list.push(ipa);
-      grouped.set(ipa.bundleId, list);
+      grouped.set(groupKey, list);
     }
 
     // Track release IDs that had assets removed, so we can check if they're empty
     const affectedReleaseIds = new Set<number>();
 
-    // Version-based cleanup: remove excess versions per app
-    for (const [bundleId, ipas] of grouped) {
+    // Version-based cleanup: remove excess versions per app (grouped by composite key)
+    for (const [groupKey, ipas] of grouped) {
       if (ipas.length <= maxVersions) continue;
 
       const toRemove = ipas.slice(maxVersions);
@@ -51,7 +55,7 @@ export async function cleanupReleases(): Promise<CleanupResult> {
               affectedReleaseIds.add(ipa.githubReleaseId);
             }
           } catch (e) {
-            await logger.warn("cleanup", `Failed to delete asset for ${bundleId}@${ipa.version}`, {
+            await logger.warn("cleanup", `Failed to delete asset for ${groupKey}@${ipa.version}`, {
               error: String(e),
             });
           }
@@ -62,7 +66,7 @@ export async function cleanupReleases(): Promise<CleanupResult> {
             freedBytes += Number(ipa.fileSize);
             deletedReleases++;
           } catch (e) {
-            await logger.warn("cleanup", `Failed to delete release for ${bundleId}@${ipa.version}`, {
+            await logger.warn("cleanup", `Failed to delete release for ${groupKey}@${ipa.version}`, {
               error: String(e),
             });
           }
@@ -71,7 +75,7 @@ export async function cleanupReleases(): Promise<CleanupResult> {
         await prisma.downloadedIpa.delete({ where: { id: ipa.id } });
       }
 
-      await logger.info("cleanup", `Cleaned up ${toRemove.length} old versions of ${bundleId}`);
+      await logger.info("cleanup", `Cleaned up ${toRemove.length} old versions of ${groupKey}`);
     }
 
     // Clean up empty releases (daily releases with no remaining IPA assets)

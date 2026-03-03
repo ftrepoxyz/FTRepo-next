@@ -1,5 +1,6 @@
 import { DownloadedIpa } from "@prisma/client";
 import { FileConfig } from "@/types/config";
+import { getLatestPerCompositeKey } from "./grouping";
 
 interface ScarletRepo {
   META: {
@@ -30,13 +31,14 @@ interface ScarletApp {
  */
 export function generateScarletJson(
   ipas: DownloadedIpa[],
-  config: FileConfig
+  config: FileConfig,
+  knownTweaks: string[]
 ): string {
-  const latestByBundle = getLatestPerBundle(ipas);
+  const latestByKey = getLatestPerCompositeKey(ipas, knownTweaks);
   const rgbColor = hexToRgbFloats(config.source.tintColor);
   const apps: ScarletApp[] = [];
 
-  for (const ipa of latestByBundle) {
+  for (const ipa of latestByKey) {
     apps.push({
       name: ipa.appName,
       version: ipa.version,
@@ -78,15 +80,4 @@ function hexToRgbFloats(hex: string): { red: number; green: number; blue: number
     green: Math.round(g * 1000) / 1000,
     blue: Math.round(b * 1000) / 1000,
   };
-}
-
-function getLatestPerBundle(ipas: DownloadedIpa[]): DownloadedIpa[] {
-  const map = new Map<string, DownloadedIpa>();
-  for (const ipa of ipas) {
-    const existing = map.get(ipa.bundleId);
-    if (!existing || ipa.createdAt > existing.createdAt) {
-      map.set(ipa.bundleId, ipa);
-    }
-  }
-  return Array.from(map.values());
 }

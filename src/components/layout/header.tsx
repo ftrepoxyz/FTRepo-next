@@ -3,9 +3,11 @@
 import { useEffect, useState, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, Moon, Sun, LogOut } from "lucide-react";
+import { RefreshCw, Moon, Sun, LogOut, Menu } from "lucide-react";
+import { useMobileSidebar } from "@/hooks/use-mobile-sidebar";
 
 export function Header() {
+  const { setOpen } = useMobileSidebar();
   const [status, setStatus] = useState<"healthy" | "unhealthy" | "loading">(
     "loading"
   );
@@ -50,8 +52,16 @@ export function Header() {
   };
 
   return (
-    <header className="flex h-14 items-center justify-between border-b border-border px-6">
+    <header className="flex h-14 items-center justify-between border-b border-border px-3 md:px-6">
       <div className="flex items-center gap-4">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="md:hidden"
+          onClick={() => setOpen(true)}
+        >
+          <Menu className="h-5 w-5" />
+        </Button>
         <Badge
           variant={
             status === "healthy"
@@ -60,7 +70,11 @@ export function Header() {
                 ? "destructive"
                 : "secondary"
           }
-          className="text-xs"
+          className={
+            status === "healthy"
+              ? "bg-green-600 text-white text-xs"
+              : "text-xs"
+          }
         >
           {status === "healthy"
             ? "System Online"
@@ -83,7 +97,7 @@ export function Header() {
         </Button>
         {username && (
           <>
-            <span className="text-sm text-muted-foreground">{username}</span>
+            <span className="hidden text-sm text-muted-foreground sm:inline">{username}</span>
             <Button variant="ghost" size="icon" onClick={handleLogout} title="Log out">
               <LogOut className="h-4 w-4" />
             </Button>

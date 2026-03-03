@@ -12,10 +12,10 @@ export function PageContainer({
   children,
 }: PageContainerProps) {
   return (
-    <div className="flex-1 space-y-6 p-6">
-      <div className="flex items-center justify-between">
+    <div className="flex-1 space-y-4 p-4 md:space-y-6 md:p-6">
+      <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
+          <h1 className="text-xl font-bold tracking-tight md:text-2xl">{title}</h1>
           {description && (
             <p className="text-sm text-muted-foreground">{description}</p>
           )}

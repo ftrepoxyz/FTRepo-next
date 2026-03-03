@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { invalidateSettingsCache } from "@/lib/config";
+import { invalidateSettingsCache, DEFAULT_KNOWN_TWEAKS } from "@/lib/config";
 import { withAuth } from "@/lib/auth";
 
 const SENSITIVE_KEYS = new Set([
@@ -15,7 +15,7 @@ export const GET = withAuth(async () => {
       orderBy: { key: "asc" },
     });
 
-    const result: Record<string, string | number | boolean> = {};
+    const result: Record<string, unknown> = {};
     for (const s of settings) {
       if (SENSITIVE_KEYS.has(s.key) && s.value) {
         result[s.key] = MASK;
@@ -41,6 +41,11 @@ export const GET = withAuth(async () => {
       }
     }
 
+    // Fill in defaults for settings not yet in the DB
+    if (!("known_tweaks" in result)) {
+      result.known_tweaks = DEFAULT_KNOWN_TWEAKS;
+    }
+
     return NextResponse.json({ success: true, data: result });
   } catch (e) {
     return NextResponse.json(
@@ -52,23 +57,33 @@ export const GET = withAuth(async () => {
 
 export const PUT = withAuth(async (request) => {
   try {
-    const body = (await request.json()) as Record<string, string | number | boolean>;
+    const body = (await request.json()) as Record<string, unknown>;
 
     for (const [key, value] of Object.entries(body)) {
       // Skip updates where value equals the mask placeholder
       if (value === MASK) continue;
 
-      const type =
-        typeof value === "number"
-          ? "number"
-          : typeof value === "boolean"
-            ? "boolean"
-            : "string";
+      let type: string;
+      let stored: string;
+
+      if (typeof value === "object" && value !== null) {
+        type = "json";
+        stored = JSON.stringify(value);
+      } else if (typeof value === "number") {
+        type = "number";
+        stored = String(value);
+      } else if (typeof value === "boolean") {
+        type = "boolean";
+        stored = String(value);
+      } else {
+        type = "string";
+        stored = String(value);
+      }
 
       await prisma.setting.upsert({
         where: { key },
-        update: { value: String(value), type },
-        create: { key, value: String(value), type },
+        update: { value: stored, type },
+        create: { key, value: stored, type },
       });
     }
 

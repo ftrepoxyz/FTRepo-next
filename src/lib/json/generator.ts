@@ -6,6 +6,7 @@ import { generateESignJson } from "./esign";
 import { generateScarletJson } from "./scarlet";
 import { generateFeatherJson } from "./feather";
 import { publishAllJsonFiles } from "../github/json-publisher";
+import { groupByCompositeKey } from "./grouping";
 
 export interface GenerationResult {
   altstore: string;
@@ -25,6 +26,7 @@ export async function generateAllJson(
   const settings = await getSettings();
   const fileConfig = getFileConfig();
   const maxVersions = settings.max_versions_per_app;
+  const knownTweaks = settings.known_tweaks;
 
   // Get all non-corrupted IPAs with download URLs
   const ipas = await prisma.downloadedIpa.findMany({
@@ -40,13 +42,14 @@ export async function generateAllJson(
 
   await logger.info("generate", `Generating JSON for ${ipas.length} IPAs`);
 
-  const altstore = generateAltStoreJson(ipas, fileConfig, maxVersions);
-  const esign = generateESignJson(ipas, fileConfig);
-  const scarlet = generateScarletJson(ipas, fileConfig);
-  const feather = generateFeatherJson(ipas, fileConfig, maxVersions);
+  const altstore = generateAltStoreJson(ipas, fileConfig, maxVersions, knownTweaks);
+  const esign = generateESignJson(ipas, fileConfig, knownTweaks);
+  const scarlet = generateScarletJson(ipas, fileConfig, knownTweaks);
+  const feather = generateFeatherJson(ipas, fileConfig, maxVersions, knownTweaks);
 
-  // Count unique apps
-  const uniqueBundles = new Set(ipas.map((i) => i.bundleId));
+  // Count unique apps using composite keys
+  const compositeGroups = groupByCompositeKey(ipas, knownTweaks);
+  const appCount = compositeGroups.size;
 
   let published = false;
   if (publish && settings.github_token) {
@@ -58,7 +61,7 @@ export async function generateAllJson(
         { path: "feather.json", content: feather },
       ]);
       published = true;
-      await logger.success("generate", `Published ${uniqueBundles.size} apps to all 4 JSON formats`);
+      await logger.success("generate", `Published ${appCount} apps to all 4 JSON formats`);
     } catch (e) {
       await logger.error("generate", "Failed to publish JSON files", {
         error: String(e),
@@ -71,7 +74,7 @@ export async function generateAllJson(
     esign,
     scarlet,
     feather,
-    appCount: uniqueBundles.size,
+    appCount,
     published,
   };
 }

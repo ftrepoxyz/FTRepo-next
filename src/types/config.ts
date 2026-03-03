@@ -100,4 +100,5 @@ export interface AppSettings {
   temp_dir: string;
   log_retention_days: number;
   scan_message_limit: number;
+  known_tweaks: string[];
 }

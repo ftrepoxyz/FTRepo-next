@@ -19,6 +19,31 @@ import {
   Line,
 } from "recharts";
 
+function ChartTooltip({ active, payload, label, formatter }: {
+  active?: boolean;
+  payload?: Array<{ name: string; value: number; color: string }>;
+  label?: string;
+  formatter?: (value: number) => string;
+}) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-lg border border-border/50 bg-popover/80 px-3 py-2 text-sm shadow-lg backdrop-blur-md">
+      {label != null && (
+        <p className="mb-1 font-medium text-popover-foreground">{label}</p>
+      )}
+      {payload.map((entry, i) => (
+        <div key={i} className="flex items-center gap-2 text-popover-foreground/80">
+          <span
+            className="inline-block h-2.5 w-2.5 rounded-full"
+            style={{ backgroundColor: entry.color }}
+          />
+          <span>{formatter ? formatter(entry.value) : entry.value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 const COLORS = [
   "hsl(217, 91%, 60%)",
   "hsl(142, 71%, 45%)",
@@ -51,7 +76,7 @@ export function DownloadChart() {
         <CardTitle className="text-lg">Downloads Over Time</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="h-[300px]">
+        <div className="h-[250px] md:h-[300px]">
           {data?.downloadsByDay && data.downloadsByDay.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={data.downloadsByDay}>
@@ -62,7 +87,7 @@ export function DownloadChart() {
                   tickFormatter={(d) => d.slice(5)}
                 />
                 <YAxis className="text-xs" />
-                <Tooltip />
+                <Tooltip content={<ChartTooltip />} />
                 <Line
                   type="monotone"
                   dataKey="count"
@@ -97,14 +122,14 @@ export function ChannelChart() {
         <CardTitle className="text-lg">IPAs by Channel</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="h-[300px]">
+        <div className="h-[250px] md:h-[300px]">
           {data?.ipasByChannel && data.ipasByChannel.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={data.ipasByChannel}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                 <XAxis dataKey="channel" className="text-xs" />
                 <YAxis className="text-xs" />
-                <Tooltip />
+                <Tooltip content={<ChartTooltip />} />
                 <Bar dataKey="count" fill={COLORS[1]} radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -134,7 +159,7 @@ export function StorageChart() {
         <CardTitle className="text-lg">Storage by App</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="h-[300px]">
+        <div className="h-[250px] md:h-[300px]">
           {data?.storageByApp && data.storageByApp.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
@@ -158,7 +183,7 @@ export function StorageChart() {
                     />
                   ))}
                 </Pie>
-                <Tooltip formatter={(value) => formatBytes(Number(value))} />
+                <Tooltip content={<ChartTooltip formatter={(v) => formatBytes(v)} />} />
               </PieChart>
             </ResponsiveContainer>
           ) : (

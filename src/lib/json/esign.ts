@@ -1,5 +1,6 @@
 import { DownloadedIpa } from "@prisma/client";
 import { FileConfig } from "@/types/config";
+import { getLatestPerCompositeKey } from "./grouping";
 
 interface ESignRepo {
   name: string;
@@ -27,13 +28,13 @@ interface ESignApp {
  */
 export function generateESignJson(
   ipas: DownloadedIpa[],
-  config: FileConfig
+  config: FileConfig,
+  knownTweaks: string[]
 ): string {
-  // Keep only the latest version per bundle ID
-  const latestByBundle = getLatestPerBundle(ipas);
+  const latestByKey = getLatestPerCompositeKey(ipas, knownTweaks);
   const apps: ESignApp[] = [];
 
-  for (const ipa of latestByBundle) {
+  for (const ipa of latestByKey) {
     apps.push({
       name: ipa.appName,
       version: ipa.version,
@@ -56,17 +57,4 @@ export function generateESignJson(
   };
 
   return JSON.stringify(repo, null, 2);
-}
-
-function getLatestPerBundle(ipas: DownloadedIpa[]): DownloadedIpa[] {
-  const map = new Map<string, DownloadedIpa>();
-
-  for (const ipa of ipas) {
-    const existing = map.get(ipa.bundleId);
-    if (!existing || ipa.createdAt > existing.createdAt) {
-      map.set(ipa.bundleId, ipa);
-    }
-  }
-
-  return Array.from(map.values());
 }

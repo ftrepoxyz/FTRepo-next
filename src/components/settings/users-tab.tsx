@@ -102,6 +102,65 @@ export function UsersTab() {
           <CardTitle>User Management</CardTitle>
         </CardHeader>
         <CardContent>
+          {/* Mobile card layout */}
+          <div className="space-y-3 md:hidden">
+            {users.map((user) => (
+              <div
+                key={user.id}
+                className="flex items-center justify-between rounded-md border px-4 py-3"
+              >
+                <div className="space-y-1">
+                  <p className="font-medium">{user.username}</p>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={user.approved ? "default" : "destructive"}>
+                      {user.approved ? "Approved" : "Pending"}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(user.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex gap-1">
+                  {!user.approved && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      title="Approve"
+                      onClick={() => updateUser(user.id, { approved: true })}
+                    >
+                      <Check className="h-4 w-4 text-green-500" />
+                    </Button>
+                  )}
+                  {user.approved && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      title="Revoke approval"
+                      onClick={() => updateUser(user.id, { approved: false })}
+                    >
+                      <X className="h-4 w-4 text-yellow-500" />
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    title="Delete user"
+                    onClick={() => setDeleteTarget(user)}
+                  >
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+            {users.length === 0 && (
+              <p className="text-center text-sm text-muted-foreground">
+                No users found
+              </p>
+            )}
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden md:block">
           <Table>
             <TableHeader>
               <TableRow>
@@ -166,6 +225,7 @@ export function UsersTab() {
               )}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
 

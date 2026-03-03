@@ -68,9 +68,9 @@ export function LogTable() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center gap-3">
         <Select value={typeFilter} onValueChange={setTypeFilter}>
-          <SelectTrigger className="w-[150px]">
+          <SelectTrigger className="w-[130px] sm:w-[150px]">
             <SelectValue placeholder="Type" />
           </SelectTrigger>
           <SelectContent>
@@ -83,7 +83,7 @@ export function LogTable() {
         </Select>
 
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[150px]">
+          <SelectTrigger className="w-[130px] sm:w-[150px]">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
@@ -95,7 +95,7 @@ export function LogTable() {
           </SelectContent>
         </Select>
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="flex w-full items-center gap-2 sm:ml-auto sm:w-auto">
           <Label htmlFor="auto-refresh" className="text-sm">
             Auto-refresh
           </Label>
@@ -110,8 +110,8 @@ export function LogTable() {
         </div>
       </div>
 
-      <div className="rounded-md border">
-        <Table>
+      <div className="overflow-x-auto rounded-md border">
+        <Table className="min-w-[500px]">
           <TableHeader>
             <TableRow>
               <TableHead>Type</TableHead>

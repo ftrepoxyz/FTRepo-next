@@ -32,6 +32,17 @@ async function main() {
     { key: "github_branch", value: "main", type: "string" },
     { key: "appstore_country", value: "us", type: "string" },
     { key: "temp_dir", value: "/tmp/ftrepo", type: "string" },
+    {
+      key: "known_tweaks",
+      value: JSON.stringify([
+        "BHInsta", "BHTikTok", "BHX", "TikTokLRD", "VibeTok", "Theta",
+        "TWIGalaxy", "NeoFreeBird", "Rocket", "Watusi", "OLED", "RXTikTok",
+        "IGFormat", "DLEasy", "TGExtra", "Spotilife", "YouTopia", "EveeSpotify",
+        "Glow", "InstaLRD", "LRD", "Preview", "Flow", "YTPlus", "GLETikTok",
+        "Moe Multi",
+      ]),
+      type: "json",
+    },
   ];
 
   for (const setting of defaultSettings) {

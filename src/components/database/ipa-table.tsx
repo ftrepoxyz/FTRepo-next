@@ -117,8 +117,8 @@ export function IpaTable() {
         </div>
       </div>
 
-      <div className="rounded-md border">
-        <Table>
+      <div className="overflow-x-auto rounded-md border">
+        <Table className="min-w-[650px]">
           <TableHeader>
             <TableRow>
               <TableHead><SortHeader label="App" field="appName" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} /></TableHead>
@@ -221,13 +221,13 @@ export function IpaTable() {
       </div>
 
       <Dialog open={!!selected} onOpenChange={() => setSelected(null)}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-[calc(100vw-2rem)] md:max-w-2xl">
           <DialogHeader>
             <DialogTitle>{selected?.appName}</DialogTitle>
           </DialogHeader>
           {selected && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
                 <div>
                   <p className="text-muted-foreground">Bundle ID</p>
                   <p className="font-mono">{selected.bundleId}</p>

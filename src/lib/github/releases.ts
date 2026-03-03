@@ -100,8 +100,9 @@ export async function uploadIpaToDailyRelease(
     release = data;
   }
 
-  // Asset filename: bundleId_version.ipa
-  const assetFileName = `${bundleId}_${version}.ipa`;
+  // Asset filename: include tweak name to avoid collisions between tweaks with same bundleId+version
+  const tweakSlug = isTweaked && tweaks.length > 0 ? `_${tweaks[0]}` : "";
+  const assetFileName = `${bundleId}${tweakSlug}_${version}.ipa`;
 
   // Check for existing asset with same name and delete it (re-upload case)
   for (const existing of release.assets || []) {

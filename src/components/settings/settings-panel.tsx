@@ -7,6 +7,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import {
@@ -33,7 +40,8 @@ interface Channel {
 }
 
 export function SettingsPanel() {
-  const [settings, setSettings] = useState<Record<string, string | number | boolean>>({});
+  const [activeTab, setActiveTab] = useState("general");
+  const [settings, setSettings] = useState<Record<string, string | number | boolean | string[]>>({});
   const [channels, setChannels] = useState<Channel[]>([]);
   const [newChannel, setNewChannel] = useState("");
   const [loading, setLoading] = useState(true);
@@ -89,7 +97,9 @@ export function SettingsPanel() {
     loadData();
   }, [loadData]);
 
-  const updateSetting = async (key: string, value: string | number | boolean) => {
+  const [newTweak, setNewTweak] = useState("");
+
+  const updateSetting = async (key: string, value: string | number | boolean | string[]) => {
     setSettings((prev) => ({ ...prev, [key]: value }));
     try {
       await fetch("/api/settings", {
@@ -191,16 +201,37 @@ export function SettingsPanel() {
   }
 
   return (
-    <Tabs defaultValue="general">
-      <TabsList>
-        <TabsTrigger value="general">General</TabsTrigger>
-        <TabsTrigger value="integrations">Integrations</TabsTrigger>
-        <TabsTrigger value="channels">Channels</TabsTrigger>
-        <TabsTrigger value="actions">Admin Actions</TabsTrigger>
-        {currentUser?.role === "admin" && (
-          <TabsTrigger value="users">Users</TabsTrigger>
-        )}
-      </TabsList>
+    <Tabs value={activeTab} onValueChange={setActiveTab}>
+      {/* Mobile: Select dropdown */}
+      <div className="md:hidden">
+        <Select value={activeTab} onValueChange={setActiveTab}>
+          <SelectTrigger className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="general">General</SelectItem>
+            <SelectItem value="integrations">Integrations</SelectItem>
+            <SelectItem value="channels">Channels</SelectItem>
+            <SelectItem value="actions">Admin Actions</SelectItem>
+            {currentUser?.role === "admin" && (
+              <SelectItem value="users">Users</SelectItem>
+            )}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Desktop: Tab bar */}
+      <div className="hidden md:block">
+        <TabsList>
+          <TabsTrigger value="general">General</TabsTrigger>
+          <TabsTrigger value="integrations">Integrations</TabsTrigger>
+          <TabsTrigger value="channels">Channels</TabsTrigger>
+          <TabsTrigger value="actions">Admin Actions</TabsTrigger>
+          {currentUser?.role === "admin" && (
+            <TabsTrigger value="users">Users</TabsTrigger>
+          )}
+        </TabsList>
+      </div>
 
       <TabsContent value="general" className="space-y-4">
         <Card>
@@ -341,6 +372,69 @@ export function SettingsPanel() {
                   onCheckedChange={(v) => updateSetting("auto_cleanup", v)}
                 />
               </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Known Tweaks</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Tweak names used to distinguish apps with the same bundle ID. When multiple tweaks target the same app, they appear as separate entries in your repo JSON.
+            </p>
+            <div className="flex gap-2">
+              <Input
+                placeholder="Tweak name (e.g., Watusi)"
+                value={newTweak}
+                onChange={(e) => setNewTweak(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && newTweak.trim()) {
+                    const current = (settings.known_tweaks as unknown as string[]) || [];
+                    if (!current.includes(newTweak.trim())) {
+                      updateSetting("known_tweaks", [...current, newTweak.trim()]);
+                    }
+                    setNewTweak("");
+                  }
+                }}
+              />
+              <Button
+                onClick={() => {
+                  if (!newTweak.trim()) return;
+                  const current = (settings.known_tweaks as unknown as string[]) || [];
+                  if (!current.includes(newTweak.trim())) {
+                    updateSetting("known_tweaks", [...current, newTweak.trim()]);
+                  }
+                  setNewTweak("");
+                }}
+              >
+                <Plus className="mr-1 h-4 w-4" /> Add
+              </Button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {((settings.known_tweaks as unknown as string[]) || []).map((tweak) => (
+                <div
+                  key={tweak}
+                  className="flex items-center gap-1 rounded-md border px-3 py-1 text-sm"
+                >
+                  <span>{tweak}</span>
+                  <button
+                    className="ml-1 text-muted-foreground hover:text-foreground"
+                    onClick={() => {
+                      const current = (settings.known_tweaks as unknown as string[]) || [];
+                      updateSetting("known_tweaks", current.filter((t) => t !== tweak));
+                    }}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+              {((settings.known_tweaks as unknown as string[]) || []).length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  No tweaks configured
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>

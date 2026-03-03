@@ -13,7 +13,7 @@ export default function MetricsPage() {
       title="Metrics"
       description="Download statistics, channel activity, and storage usage"
     >
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-4 md:gap-6 lg:grid-cols-2">
         <DownloadChart />
         <ChannelChart />
       </div>

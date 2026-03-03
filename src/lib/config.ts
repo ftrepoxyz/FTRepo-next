@@ -76,6 +76,14 @@ export function getFileConfig(): FileConfig {
 
 // --- DB-backed settings with TTL cache ---
 
+export const DEFAULT_KNOWN_TWEAKS = [
+  "BHInsta", "BHTikTok", "BHX", "TikTokLRD", "VibeTok", "Theta",
+  "TWIGalaxy", "NeoFreeBird", "Rocket", "Watusi", "OLED", "RXTikTok",
+  "IGFormat", "DLEasy", "TGExtra", "Spotilife", "YouTopia", "EveeSpotify",
+  "Glow", "InstaLRD", "LRD", "Preview", "Flow", "YTPlus", "GLETikTok",
+  "Moe Multi",
+];
+
 const SETTINGS_DEFAULTS: Record<string, string> = {
   telegram_api_id: "",
   telegram_api_hash: "",
@@ -92,6 +100,7 @@ const SETTINGS_DEFAULTS: Record<string, string> = {
   temp_dir: "/tmp/ftrepo",
   log_retention_days: "30",
   scan_message_limit: "500",
+  known_tweaks: JSON.stringify(DEFAULT_KNOWN_TWEAKS),
 };
 
 let cachedSettings: AppSettings | null = null;
@@ -124,10 +133,20 @@ export async function getSettings(): Promise<AppSettings> {
     temp_dir: dbMap.get("temp_dir") ?? process.env.TEMP_DIR ?? SETTINGS_DEFAULTS.temp_dir,
     log_retention_days: dbMap.get("log_retention_days") ?? process.env.LOG_RETENTION_DAYS ?? SETTINGS_DEFAULTS.log_retention_days,
     scan_message_limit: dbMap.get("scan_message_limit") ?? process.env.SCAN_MESSAGE_LIMIT ?? SETTINGS_DEFAULTS.scan_message_limit,
+    known_tweaks: dbMap.get("known_tweaks") ?? SETTINGS_DEFAULTS.known_tweaks,
   };
 
   function num(key: string): number {
     return Number(raw[key]) || Number(SETTINGS_DEFAULTS[key]);
+  }
+
+  function jsonArray(key: string, fallback: string[]): string[] {
+    try {
+      const parsed = JSON.parse(raw[key]);
+      return Array.isArray(parsed) ? parsed : fallback;
+    } catch {
+      return fallback;
+    }
   }
 
   const settings: AppSettings = {
@@ -146,6 +165,7 @@ export async function getSettings(): Promise<AppSettings> {
     max_versions_per_app: num("max_versions_per_app"),
     log_retention_days: num("log_retention_days"),
     scan_message_limit: num("scan_message_limit"),
+    known_tweaks: jsonArray("known_tweaks", DEFAULT_KNOWN_TWEAKS),
   };
 
   cachedSettings = settings;
