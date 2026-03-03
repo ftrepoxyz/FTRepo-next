@@ -23,6 +23,7 @@ interface StartPageProps {
   sourceSubtitle: string;
   baseUrl: string | null;
   tintColor: string;
+  siteDomain: string;
 }
 
 const signers = [
@@ -282,11 +283,19 @@ const signerIcons: Record<string, React.ReactNode> = {
   ),
 };
 
+const shortUrlFormats = [
+  { name: "Feather", path: "/feather" },
+  { name: "ESign", path: "/esign" },
+  { name: "Scarlet", path: "/scarlet" },
+  { name: "Store", path: "/store" },
+];
+
 export function StartPage({
   sourceName,
   sourceSubtitle,
   baseUrl,
   tintColor,
+  siteDomain,
 }: StartPageProps) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [carouselReady, setCarouselReady] = useState(false);
@@ -601,10 +610,9 @@ export function StartPage({
                 Use the hosted version
               </h3>
               <p className="text-sm text-zinc-400 leading-relaxed mb-4">
-                This instance is live at{" "}
+                The main instance is live at{" "}
                 <span className="text-zinc-200 font-medium">ftrepo.xyz</span> — ready to
-                use with no setup required. Just add the source to your signer
-                and go.
+                use with no setup. Just add the source to your signer and go.
               </p>
               <button
                 onClick={() =>
@@ -750,6 +758,45 @@ export function StartPage({
                   })}
                 </div>
               </div>
+
+              {/* Short URLs */}
+              {siteDomain && (
+                <div className="hp-reveal mt-6">
+                  <p className="text-[11px] text-center uppercase tracking-[0.2em] text-zinc-700 mb-3">
+                    Short URLs
+                  </p>
+                  <div className="space-y-2">
+                    {shortUrlFormats.map((fmt) => {
+                      const shortUrl = `${siteDomain}${fmt.path}`;
+                      const shortId = `short-${fmt.name}`;
+                      return (
+                        <div
+                          key={fmt.name}
+                          className="flex items-center gap-3 rounded-lg border border-zinc-800/50 bg-zinc-900/30 px-4 py-2.5"
+                        >
+                          <span className="text-xs font-medium text-zinc-400 w-16 shrink-0">
+                            {fmt.name}
+                          </span>
+                          <code className="flex-1 truncate text-xs text-zinc-500 font-mono">
+                            {shortUrl}
+                          </code>
+                          <button
+                            onClick={() => copyUrl(shortUrl, shortId)}
+                            className="shrink-0 p-1 rounded text-zinc-600 hover:text-zinc-300 transition-colors duration-200"
+                            title={`Copy ${fmt.name} short URL`}
+                          >
+                            {copiedId === shortId ? (
+                              <Check className="h-3.5 w-3.5 text-emerald-400" />
+                            ) : (
+                              <Copy className="h-3.5 w-3.5" />
+                            )}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </>
           ) : (
             <div className="hp-reveal text-center space-y-4">

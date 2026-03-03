@@ -101,6 +101,9 @@ const SETTINGS_DEFAULTS: Record<string, string> = {
   log_retention_days: "30",
   scan_message_limit: "500",
   known_tweaks: JSON.stringify(DEFAULT_KNOWN_TWEAKS),
+  source_name: "FTRepo",
+  source_description: "Automated iOS IPA distribution",
+  site_domain: "",
 };
 
 let cachedSettings: AppSettings | null = null;
@@ -134,6 +137,9 @@ export async function getSettings(): Promise<AppSettings> {
     log_retention_days: dbMap.get("log_retention_days") ?? process.env.LOG_RETENTION_DAYS ?? SETTINGS_DEFAULTS.log_retention_days,
     scan_message_limit: dbMap.get("scan_message_limit") ?? process.env.SCAN_MESSAGE_LIMIT ?? SETTINGS_DEFAULTS.scan_message_limit,
     known_tweaks: dbMap.get("known_tweaks") ?? SETTINGS_DEFAULTS.known_tweaks,
+    source_name: dbMap.get("source_name") ?? SETTINGS_DEFAULTS.source_name,
+    source_description: dbMap.get("source_description") ?? SETTINGS_DEFAULTS.source_description,
+    site_domain: dbMap.get("site_domain") ?? SETTINGS_DEFAULTS.site_domain,
   };
 
   function num(key: string): number {
@@ -166,6 +172,9 @@ export async function getSettings(): Promise<AppSettings> {
     log_retention_days: num("log_retention_days"),
     scan_message_limit: num("scan_message_limit"),
     known_tweaks: jsonArray("known_tweaks", DEFAULT_KNOWN_TWEAKS),
+    source_name: raw.source_name,
+    source_description: raw.source_description,
+    site_domain: raw.site_domain,
   };
 
   cachedSettings = settings;

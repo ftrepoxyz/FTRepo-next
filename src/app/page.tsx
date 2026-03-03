@@ -7,6 +7,7 @@ export default async function Home() {
   let sourceSubtitle = "iOS App Repository";
   let tintColor = "#5C7AEA";
   let baseUrl: string | null = null;
+  let siteDomain = "";
 
   try {
     const fileConfig = getFileConfig();
@@ -30,6 +31,7 @@ export default async function Home() {
             "github_branch",
             "source_name",
             "source_description",
+            "site_domain",
           ],
         },
       },
@@ -38,6 +40,7 @@ export default async function Home() {
 
     if (map.source_name) sourceName = map.source_name;
     if (map.source_description) sourceSubtitle = map.source_description;
+    if (map.site_domain) siteDomain = map.site_domain;
 
     const owner =
       map.github_owner || process.env.GITHUB_OWNER || "";
@@ -58,6 +61,7 @@ export default async function Home() {
       sourceSubtitle={sourceSubtitle}
       baseUrl={baseUrl}
       tintColor={tintColor}
+      siteDomain={siteDomain}
     />
   );
 }

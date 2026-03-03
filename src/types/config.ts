@@ -101,4 +101,7 @@ export interface AppSettings {
   log_retention_days: number;
   scan_message_limit: number;
   known_tweaks: string[];
+  source_name: string;
+  source_description: string;
+  site_domain: string;
 }

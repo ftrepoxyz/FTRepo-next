@@ -23,6 +23,7 @@ async function main() {
       value: "Automated iOS IPA distribution",
       type: "string",
     },
+    { key: "site_domain", value: "", type: "string" },
     { key: "telegram_api_id", value: "", type: "string" },
     { key: "telegram_api_hash", value: "", type: "string" },
     { key: "telegram_phone", value: "", type: "string" },

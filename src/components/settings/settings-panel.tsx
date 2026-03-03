@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,22 +29,123 @@ import {
   Plug,
   Unplug,
   Play,
+  Save,
+  Undo2,
 } from "lucide-react";
 import { UsersTab } from "@/components/settings/users-tab";
+
+function UnsavedBanner({
+  show,
+  saving,
+  onSave,
+  onDiscard,
+}: {
+  show: boolean;
+  saving: boolean;
+  onSave: () => void;
+  onDiscard: () => void;
+}) {
+  if (!show) return null;
+
+  return (
+    <div
+      role="status"
+      className="sticky top-0 z-40 mb-4 flex items-center justify-between gap-4 rounded-lg border border-border bg-muted px-4 py-3"
+    >
+      <div className="flex items-center gap-2">
+        <AlertCircle className="h-4 w-4 shrink-0 text-yellow-500" />
+        <p className="text-sm font-medium">Unsaved changes</p>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        <Button variant="ghost" size="sm" onClick={onDiscard}>
+          <Undo2 className="mr-1.5 h-3.5 w-3.5" />
+          Discard
+        </Button>
+        <Button size="sm" onClick={onSave} disabled={saving}>
+          {saving ? (
+            <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Save className="mr-1.5 h-3.5 w-3.5" />
+          )}
+          Save
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function NumberInput({
+  value,
+  onChange,
+  min,
+  placeholder,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  min?: number;
+  placeholder?: string;
+}) {
+  const [draft, setDraft] = useState(String(value));
+
+  useEffect(() => {
+    setDraft(String(value));
+  }, [value]);
+
+  return (
+    <Input
+      type="text"
+      inputMode="numeric"
+      value={draft}
+      placeholder={placeholder}
+      onChange={(e) => {
+        // Allow only digits (and empty for clearing)
+        if (/^\d*$/.test(e.target.value)) {
+          setDraft(e.target.value);
+        }
+      }}
+      onBlur={() => {
+        const parsed = parseInt(draft, 10);
+        if (isNaN(parsed) || (min !== undefined && parsed < min)) {
+          setDraft(String(value));
+        } else {
+          onChange(parsed);
+        }
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.currentTarget.blur();
+        }
+      }}
+    />
+  );
+}
 
 interface Channel {
   id: number;
   channelId: string;
   channelName: string | null;
+  channelDescription: string | null;
   isActive: boolean;
 }
 
+type SettingsMap = Record<string, string | number | boolean | string[]>;
+
+const VALID_TABS = ["general", "integrations", "channels", "actions", "users"];
+
+function getInitialTab(): string {
+  if (typeof window === "undefined") return "general";
+  const hash = window.location.hash.slice(1);
+  return VALID_TABS.includes(hash) ? hash : "general";
+}
+
 export function SettingsPanel() {
-  const [activeTab, setActiveTab] = useState("general");
-  const [settings, setSettings] = useState<Record<string, string | number | boolean | string[]>>({});
+  const [activeTab, setActiveTab] = useState(getInitialTab);
+  const [settings, setSettings] = useState<SettingsMap>({});
+  const [savedSettings, setSavedSettings] = useState<SettingsMap>({});
   const [channels, setChannels] = useState<Channel[]>([]);
   const [newChannel, setNewChannel] = useState("");
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [currentUser, setCurrentUser] = useState<{ role: string } | null>(null);
   const [telegramAuth, setTelegramAuth] = useState<{
     state: string;
@@ -54,6 +155,39 @@ export function SettingsPanel() {
   const [authCode, setAuthCode] = useState("");
   const [authPassword, setAuthPassword] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
+
+  const changeTab = useCallback((tab: string) => {
+    setActiveTab(tab);
+    window.history.replaceState(null, "", `#${tab}`);
+  }, []);
+
+  const isDirty = useMemo(() => {
+    const keys = new Set([...Object.keys(settings), ...Object.keys(savedSettings)]);
+    for (const key of keys) {
+      const a = settings[key];
+      const b = savedSettings[key];
+      if (Array.isArray(a) && Array.isArray(b)) {
+        if (a.length !== b.length || a.some((v, i) => v !== b[i])) return true;
+      } else if (a !== b) {
+        return true;
+      }
+    }
+    return false;
+  }, [settings, savedSettings]);
+
+  const isDirtyRef = useRef(false);
+  isDirtyRef.current = isDirty;
+
+  // Prevent browser/tab close with unsaved changes
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (isDirtyRef.current) {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, []);
 
   const loadTelegramAuth = useCallback(async () => {
     try {
@@ -82,7 +216,10 @@ export function SettingsPanel() {
       const channelsData = await channelsRes.json();
       const meData = await meRes.json();
 
-      if (settingsData.success) setSettings(settingsData.data);
+      if (settingsData.success) {
+        setSettings(settingsData.data);
+        setSavedSettings(settingsData.data);
+      }
       if (channelsData.success) setChannels(channelsData.data);
       if (meData.success) setCurrentUser(meData.user);
     } catch {
@@ -99,18 +236,39 @@ export function SettingsPanel() {
 
   const [newTweak, setNewTweak] = useState("");
 
-  const updateSetting = async (key: string, value: string | number | boolean | string[]) => {
+  const updateSetting = (key: string, value: string | number | boolean | string[]) => {
     setSettings((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const saveAllSettings = async () => {
+    setSaving(true);
     try {
+      const changed: SettingsMap = {};
+      for (const key of Object.keys(settings)) {
+        const a = settings[key];
+        const b = savedSettings[key];
+        if (Array.isArray(a) && Array.isArray(b)) {
+          if (a.length !== b.length || a.some((v, i) => v !== b[i])) changed[key] = a;
+        } else if (a !== b) {
+          changed[key] = a;
+        }
+      }
       await fetch("/api/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ [key]: value }),
+        body: JSON.stringify(changed),
       });
-      toast.success("Setting updated");
+      setSavedSettings({ ...settings });
+      toast.success("Settings saved");
     } catch {
-      toast.error("Failed to update setting");
+      toast.error("Failed to save settings");
+    } finally {
+      setSaving(false);
     }
+  };
+
+  const discardChanges = () => {
+    setSettings({ ...savedSettings });
   };
 
   const telegramAuthAction = async (
@@ -201,10 +359,17 @@ export function SettingsPanel() {
   }
 
   return (
-    <Tabs value={activeTab} onValueChange={setActiveTab}>
+    <>
+      <UnsavedBanner
+        show={isDirty}
+        saving={saving}
+        onSave={saveAllSettings}
+        onDiscard={discardChanges}
+      />
+    <Tabs value={activeTab} onValueChange={changeTab}>
       {/* Mobile: Select dropdown */}
       <div className="md:hidden">
-        <Select value={activeTab} onValueChange={setActiveTab}>
+        <Select value={activeTab} onValueChange={changeTab}>
           <SelectTrigger className="w-full">
             <SelectValue />
           </SelectTrigger>
@@ -256,6 +421,19 @@ export function SettingsPanel() {
                   }
                 />
               </div>
+              <div className="space-y-2">
+                <Label>Site Domain</Label>
+                <Input
+                  value={String(settings.site_domain || "")}
+                  onChange={(e) =>
+                    updateSetting("site_domain", e.target.value)
+                  }
+                  placeholder="e.g., ftrepo.xyz"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Custom domain for short source URLs
+                </p>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -268,63 +446,51 @@ export function SettingsPanel() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label>Scan Interval (minutes)</Label>
-                <Input
-                  type="number"
-                  value={String(settings.scan_interval_minutes || 30)}
-                  onChange={(e) =>
-                    updateSetting("scan_interval_minutes", Number(e.target.value))
-                  }
+                <NumberInput
+                  value={Number(settings.scan_interval_minutes) || 30}
+                  min={1}
+                  onChange={(v) => updateSetting("scan_interval_minutes", v)}
                 />
               </div>
               <div className="space-y-2">
                 <Label>JSON Regen Interval (minutes)</Label>
-                <Input
-                  type="number"
-                  value={String(settings.json_regen_interval_minutes || 60)}
-                  onChange={(e) =>
-                    updateSetting("json_regen_interval_minutes", Number(e.target.value))
-                  }
+                <NumberInput
+                  value={Number(settings.json_regen_interval_minutes) || 60}
+                  min={1}
+                  onChange={(v) => updateSetting("json_regen_interval_minutes", v)}
                 />
               </div>
               <div className="space-y-2">
                 <Label>Cleanup Interval (hours)</Label>
-                <Input
-                  type="number"
-                  value={String(settings.cleanup_interval_hours || 24)}
-                  onChange={(e) =>
-                    updateSetting("cleanup_interval_hours", Number(e.target.value))
-                  }
+                <NumberInput
+                  value={Number(settings.cleanup_interval_hours) || 24}
+                  min={1}
+                  onChange={(v) => updateSetting("cleanup_interval_hours", v)}
                 />
               </div>
               <div className="space-y-2">
                 <Label>Max Versions Per App</Label>
-                <Input
-                  type="number"
-                  value={String(settings.max_versions_per_app || 5)}
-                  onChange={(e) =>
-                    updateSetting("max_versions_per_app", Number(e.target.value))
-                  }
+                <NumberInput
+                  value={Number(settings.max_versions_per_app) || 5}
+                  min={1}
+                  onChange={(v) => updateSetting("max_versions_per_app", v)}
                 />
               </div>
               <div className="space-y-2">
                 <Label>Log Retention (days)</Label>
-                <Input
-                  type="number"
-                  value={String(settings.log_retention_days || 30)}
-                  onChange={(e) =>
-                    updateSetting("log_retention_days", Number(e.target.value))
-                  }
+                <NumberInput
+                  value={Number(settings.log_retention_days) || 30}
+                  min={1}
+                  onChange={(v) => updateSetting("log_retention_days", v)}
                 />
               </div>
               <div className="space-y-2">
                 <Label>Scan Messages per Run</Label>
-                <Input
-                  type="number"
-                  value={String(settings.scan_message_limit || 500)}
-                  onChange={(e) =>
-                    updateSetting("scan_message_limit", Number(e.target.value))
-                  }
+                <NumberInput
+                  value={Number(settings.scan_message_limit) || 500}
+                  min={0}
                   placeholder="500"
+                  onChange={(v) => updateSetting("scan_message_limit", v)}
                 />
                 <p className="text-xs text-muted-foreground">
                   Max messages to scan per channel per run (0 = unlimited)
@@ -678,15 +844,24 @@ export function SettingsPanel() {
               {channels.map((ch) => (
                 <div
                   key={ch.channelId}
-                  className="flex items-center justify-between rounded-md border px-4 py-2"
+                  className="flex items-center gap-4 rounded-lg border px-4 py-3"
                 >
-                  <div>
-                    <p className="font-medium">{ch.channelName || ch.channelId}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {ch.channelId}
-                    </p>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium leading-none">
+                        {ch.channelName || ch.channelId}
+                      </p>
+                      <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] font-mono text-muted-foreground">
+                        {ch.channelId}
+                      </span>
+                    </div>
+                    {ch.channelDescription && (
+                      <p className="mt-1 text-xs text-muted-foreground line-clamp-1">
+                        {ch.channelDescription}
+                      </p>
+                    )}
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 shrink-0">
                     <Switch
                       checked={ch.isActive}
                       onCheckedChange={async (active) => {
@@ -777,6 +952,8 @@ export function SettingsPanel() {
           <UsersTab />
         </TabsContent>
       )}
+
     </Tabs>
+    </>
   );
 }

@@ -6,9 +6,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useBranding } from "@/hooks/use-branding";
 
 export default function RegisterPage() {
   const router = useRouter();
+  const { source_name } = useBranding();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -76,7 +78,7 @@ export default function RegisterPage() {
   return (
     <Card className="w-full max-w-sm">
       <CardHeader className="text-center">
-        <CardTitle className="text-2xl">FTRepo</CardTitle>
+        <CardTitle className="text-2xl">{source_name}</CardTitle>
         <CardDescription>Create a new account</CardDescription>
       </CardHeader>
       <CardContent>

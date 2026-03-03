@@ -21,6 +21,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { useMobileSidebar } from "@/hooks/use-mobile-sidebar";
+import { useBranding } from "@/hooks/use-branding";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -61,6 +62,7 @@ function SidebarNav({ collapsed = false, onNavigate }: { collapsed?: boolean; on
 
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
+  const { source_name } = useBranding();
 
   return (
     <aside
@@ -73,7 +75,7 @@ export function Sidebar() {
         {!collapsed && (
           <Link href="/dashboard" className="flex items-center gap-2">
             <span className="text-lg font-bold text-sidebar-primary">
-              FTRepo
+              {source_name}
             </span>
           </Link>
         )}
@@ -96,7 +98,7 @@ export function Sidebar() {
       <div className="border-t border-border p-2">
         {!collapsed && (
           <p className="px-3 py-2 text-xs text-muted-foreground">
-            FTRepo v0.1.0
+            {source_name} v0.1.0
           </p>
         )}
       </div>
@@ -106,6 +108,7 @@ export function Sidebar() {
 
 export function MobileSidebar() {
   const { open, setOpen } = useMobileSidebar();
+  const { source_name } = useBranding();
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -114,7 +117,7 @@ export function MobileSidebar() {
         <div className="flex h-14 items-center border-b border-border px-4">
           <Link href="/dashboard" className="flex items-center gap-2" onClick={() => setOpen(false)}>
             <span className="text-lg font-bold text-sidebar-primary">
-              FTRepo
+              {source_name}
             </span>
           </Link>
         </div>
@@ -123,7 +126,7 @@ export function MobileSidebar() {
 
         <div className="border-t border-border p-2">
           <p className="px-3 py-2 text-xs text-muted-foreground">
-            FTRepo v0.1.0
+            {source_name} v0.1.0
           </p>
         </div>
       </SheetContent>

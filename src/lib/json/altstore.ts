@@ -51,7 +51,7 @@ export function generateAltStoreJson(
 
   const repo: AltStoreRepo = {
     name: config.source.name,
-    identifier: "xyz.ftrepo",
+    identifier: `xyz.${config.source.name.toLowerCase().replace(/[^a-z0-9]/g, "")}`,
     apps,
   };
 

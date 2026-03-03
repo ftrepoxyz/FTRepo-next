@@ -52,7 +52,7 @@ export function generateESignJson(
 
   const repo: ESignRepo = {
     name: config.source.name,
-    identifier: `com.ftrepo.${config.source.name.toLowerCase().replace(/\s+/g, "")}`,
+    identifier: `com.${config.source.name.toLowerCase().replace(/[^a-z0-9]/g, "")}.source`,
     apps,
   };
 

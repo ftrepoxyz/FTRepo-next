@@ -1,6 +1,7 @@
 import type { Client as TdlClient } from "tdl";
 import { prisma } from "../db";
 import { logger } from "../logger";
+import { resolveChannelInfo } from "./channel-info";
 
 /**
  * Scan a Telegram channel for IPA files.
@@ -36,6 +37,9 @@ export async function scanChannel(
       await logger.warn("scan", `Channel not found: ${channelId}`);
       return { newMessages: 0, ipaMessages: 0 };
     }
+
+    // Update channel name and description from Telegram
+    await resolveChannelInfo(channelId);
 
     // Get channel message history starting from last known position
     let fromMessageId = Number(progress.lastMessageId);

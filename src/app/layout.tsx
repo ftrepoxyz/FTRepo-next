@@ -3,6 +3,7 @@ import { Geist, Geist_Mono, Cinzel } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { getSettings } from "@/lib/config";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -19,10 +20,20 @@ const cinzel = Cinzel({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
-  title: "FTRepo — IPA Repository Dashboard",
-  description: "Automated iOS IPA distribution and management dashboard",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  try {
+    const settings = await getSettings();
+    return {
+      title: `${settings.source_name} — IPA Repository Dashboard`,
+      description: settings.source_description || "Automated iOS IPA distribution and management dashboard",
+    };
+  } catch {
+    return {
+      title: "FTRepo — IPA Repository Dashboard",
+      description: "Automated iOS IPA distribution and management dashboard",
+    };
+  }
+}
 
 export default function RootLayout({
   children,
