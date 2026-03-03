@@ -30,14 +30,14 @@ export interface AltStoreApp {
   name: string;
   bundleIdentifier: string;
   developerName: string;
-  subtitle: string;
   localizedDescription: string;
   iconURL: string;
-  tintColor: string;
-  screenshotURLs: string[];
   versions: AltStoreVersion[];
-  appPermissions: AltStorePermissions;
-  category?: string;
+  appPermissions: Record<string, never>;
+  version: string;
+  versionDate: string;
+  size: number;
+  downloadURL: string;
 }
 
 export interface AltStoreVersion {
@@ -45,22 +45,6 @@ export interface AltStoreVersion {
   date: string;
   size: number;
   downloadURL: string;
-  localizedDescription: string;
-  minOSVersion?: string;
-}
-
-export interface AltStorePermissions {
-  entitlements: AltStoreEntitlement[];
-  privacy: AltStorePrivacy[];
-}
-
-export interface AltStoreEntitlement {
-  name: string;
-}
-
-export interface AltStorePrivacy {
-  name: string;
-  usageDescription: string;
 }
 
 export interface ESignApp {

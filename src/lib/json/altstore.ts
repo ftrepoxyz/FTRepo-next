@@ -1,17 +1,10 @@
 import { DownloadedIpa } from "@prisma/client";
-import { AltStoreApp, AltStoreVersion, FileConfig, NewsEntry } from "@/types/config";
+import { AltStoreApp, AltStoreVersion, FileConfig } from "@/types/config";
 
 interface AltStoreRepo {
   name: string;
-  subtitle: string;
-  description: string;
-  iconURL: string;
-  headerURL: string;
-  website: string;
-  tintColor: string;
-  featuredApps: string[];
+  identifier: string;
   apps: AltStoreApp[];
-  news: NewsEntry[];
 }
 
 /**
@@ -35,44 +28,29 @@ export function generateAltStoreJson(
         date: ipa.createdAt.toISOString().split("T")[0],
         size: Number(ipa.fileSize),
         downloadURL: ipa.downloadUrl || ipa.githubAssetUrl || "",
-        localizedDescription: ipa.description || `${ipa.appName} v${ipa.version}`,
-        minOSVersion: ipa.minOsVersion || undefined,
       }));
 
-    const entitlements = (latest.entitlements as Record<string, string>) || {};
-    const privacyInfo = (latest.privacyInfo as Record<string, string>) || {};
+    const latestVersion = versions[0];
 
     apps.push({
       name: latest.appName,
       bundleIdentifier: latest.bundleId,
       developerName: latest.developerName || "Unknown Developer",
-      subtitle: latest.isTweaked ? "Tweaked" : "",
-      localizedDescription: latest.description || latest.appName,
       iconURL: latest.iconUrl || "",
-      tintColor: config.source.tintColor,
-      screenshotURLs: (latest.screenshotUrls as string[]) || [],
+      localizedDescription: latest.description || latest.appName,
       versions,
-      appPermissions: {
-        entitlements: Object.keys(entitlements).map((name) => ({ name })),
-        privacy: Object.entries(privacyInfo).map(([name, usageDescription]) => ({
-          name,
-          usageDescription,
-        })),
-      },
+      appPermissions: {},
+      version: latestVersion.version,
+      versionDate: latest.createdAt.toISOString(),
+      size: latestVersion.size,
+      downloadURL: latestVersion.downloadURL,
     });
   }
 
   const repo: AltStoreRepo = {
     name: config.source.name,
-    subtitle: config.source.subtitle,
-    description: config.source.description,
-    iconURL: config.source.iconURL,
-    headerURL: config.source.headerURL,
-    website: config.source.website,
-    tintColor: config.source.tintColor,
-    featuredApps: config.source.featuredApps,
+    identifier: "xyz.ftrepo",
     apps,
-    news: config.news,
   };
 
   return JSON.stringify(repo, null, 2);
