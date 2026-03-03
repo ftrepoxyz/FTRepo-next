@@ -286,17 +286,17 @@ export function SettingsPanel() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Scan Message Limit</Label>
+                <Label>Scan Messages per Run</Label>
                 <Input
                   type="number"
-                  value={String(settings.scan_message_limit || 0)}
+                  value={String(settings.scan_message_limit || 500)}
                   onChange={(e) =>
                     updateSetting("scan_message_limit", Number(e.target.value))
                   }
-                  placeholder="0 = unlimited"
+                  placeholder="500"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Max messages to scan per channel (0 = unlimited)
+                  Max messages to scan per channel per run (0 = unlimited)
                 </p>
               </div>
               <div className="space-y-2">

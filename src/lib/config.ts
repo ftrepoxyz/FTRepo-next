@@ -91,7 +91,7 @@ const SETTINGS_DEFAULTS: Record<string, string> = {
   max_versions_per_app: "5",
   temp_dir: "/tmp/ftrepo",
   log_retention_days: "30",
-  scan_message_limit: "0",
+  scan_message_limit: "500",
 };
 
 let cachedSettings: AppSettings | null = null;
