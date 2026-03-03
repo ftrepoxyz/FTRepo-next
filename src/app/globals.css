@@ -151,3 +151,98 @@
   opacity: 1;
   transform: none;
 }
+
+/* Stagger extensions for children 6-7 */
+.hp-stagger > *:nth-child(6) { animation-delay: 400ms; }
+.hp-stagger > *:nth-child(7) { animation-delay: 480ms; }
+
+/* Float animation for hero icon */
+@keyframes hp-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+.hp-float {
+  animation: hp-float 4s ease-in-out infinite;
+}
+
+/* Carousel */
+@keyframes hp-scroll-left {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+@keyframes hp-scroll-right {
+  from { transform: translateX(-50%); }
+  to { transform: translateX(0); }
+}
+.hp-carousel {
+  position: relative;
+  overflow: hidden;
+  mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
+}
+.hp-carousel-track {
+  display: flex;
+  gap: 1rem;
+  width: max-content;
+  will-change: transform;
+}
+.hp-carousel-left {
+  animation: hp-scroll-left 40s linear infinite;
+}
+.hp-carousel-right {
+  animation: hp-scroll-right 40s linear infinite;
+}
+.hp-carousel {
+  cursor: grab;
+  touch-action: pan-y;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.hp-carousel.is-dragging {
+  cursor: grabbing;
+}
+.hp-carousel-item {
+  flex-shrink: 0;
+  width: 64px;
+  height: 64px;
+  border-radius: 14px;
+  overflow: hidden;
+  pointer-events: none;
+}
+/* Shiny card shimmer */
+@keyframes hp-shimmer {
+  0% { transform: translateX(-200%) rotate(15deg); }
+  100% { transform: translateX(200%) rotate(15deg); }
+}
+.hp-shiny-card {
+  position: relative;
+  overflow: hidden;
+}
+.hp-shiny-card::after {
+  content: "";
+  position: absolute;
+  inset: -100%;
+  width: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.03) 30%,
+    rgba(255, 255, 255, 0.08) 42%,
+    rgba(255, 255, 255, 0.18) 50%,
+    rgba(255, 255, 255, 0.08) 58%,
+    rgba(255, 255, 255, 0.03) 70%,
+    transparent 100%
+  );
+  animation: hp-shimmer 5s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* Entrance pop-in */
+@keyframes hp-pop-in {
+  from { opacity: 0; transform: scale(0.6); }
+  to { opacity: 1; transform: scale(1); }
+}
+.hp-carousel-item.hp-entering {
+  opacity: 0;
+  animation: hp-pop-in 0.4s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
