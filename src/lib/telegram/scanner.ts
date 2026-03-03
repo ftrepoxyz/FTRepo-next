@@ -54,7 +54,7 @@ export async function scanChannel(
         offset: 0,
         limit: fetchLimit,
         only_local: false,
-      })) as { messages?: Array<{ id: number; content: { _: string; document?: { file_name?: string; document?: { size?: number; id?: number } } } }> };
+      })) as { messages?: Array<{ id: number; content: { _: string; document?: { file_name?: string; document?: { size?: number; id?: number } }; caption?: { text?: string } } }> };
 
       const messages = history.messages || [];
       if (messages.length === 0) {
@@ -93,6 +93,7 @@ export async function scanChannel(
               hasIpa: true,
               fileName: msg.content.document!.file_name!,
               fileSize: BigInt(msg.content.document!.document?.size || 0),
+              messageText: msg.content.caption?.text || null,
               status: "pending",
             },
           });

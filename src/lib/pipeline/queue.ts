@@ -7,6 +7,7 @@ export interface QueueEntry {
   messageId: number; // converted from BigInt for TDLib compat
   fileName: string;
   fileSize: bigint;
+  messageText: string | null;
 }
 
 /**
@@ -33,6 +34,7 @@ export async function claimNextPending(): Promise<QueueEntry | null> {
       messageId: Number(pending.messageId),
       fileName: pending.fileName || "unknown.ipa",
       fileSize: pending.fileSize || BigInt(0),
+      messageText: pending.messageText || null,
     };
   });
 }

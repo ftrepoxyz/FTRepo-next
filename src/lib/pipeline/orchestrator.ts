@@ -101,7 +101,12 @@ export async function processNextIpa(
         fileSize: entry.fileSize,
         iconUrl: appStoreData?.iconUrl || null,
         screenshotUrls: appStoreData?.screenshots || [],
-        description: appStoreData?.description || null,
+        description: (() => {
+          const channel = entry.channelId.startsWith("@") ? entry.channelId : `@${entry.channelId}`;
+          const desc = entry.messageText || appStoreData?.description || null;
+          if (!desc) return `from ${channel} |`;
+          return `from ${channel} |\n----------------\n${desc}`;
+        })(),
         developerName: appStoreData?.developer || null,
         tweaks: metadata.tweaks,
         isTweaked: metadata.isTweaked,

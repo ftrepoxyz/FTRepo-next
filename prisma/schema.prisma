@@ -14,6 +14,7 @@ model ProcessedMessage {
   hasIpa    Boolean  @default(false) @map("has_ipa")
   fileName  String?  @map("file_name")
   fileSize  BigInt?  @map("file_size")
+  messageText String? @map("message_text")
   status    String   @default("pending") // pending, downloading, processing, completed, failed, skipped
   error     String?
   createdAt DateTime @default(now()) @map("created_at")
