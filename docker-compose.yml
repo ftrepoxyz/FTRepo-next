@@ -21,6 +21,8 @@ services:
       - "3000:3000"
     environment:
       DATABASE_URL: postgresql://ftrepo:ftrepo@db:5432/ftrepo?schema=public
+    volumes:
+      - tdlib-data:/app/tdlib-data
     depends_on:
       db:
         condition: service_healthy

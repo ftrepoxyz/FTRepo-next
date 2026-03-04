@@ -74,7 +74,11 @@ Go to **Settings** and fill in:
 - **GitHub** — Token, repository owner, and repo name
 - **Channels** — Add the Telegram channels to scan (e.g. `@channelname`)
 
-The worker will pick up the new config and start scanning automatically.
+### 4. Connect Telegram
+
+After saving your Telegram credentials, click **Connect** in Settings → Integrations and complete the login (verification code / 2FA password). This creates a TDLib session shared between the app and worker containers via the `tdlib-data` volume. The worker will then pick up the session and start scanning automatically.
+
+> **Note:** If the worker keeps restarting with "Telegram is not connected", make sure both the `app` and `worker` services mount the `tdlib-data` volume (see the Docker Compose below) and re-authenticate via the web UI.
 
 ### Docker Compose
 
@@ -102,6 +106,8 @@ services:
       - "3000:3000"
     environment:
       DATABASE_URL: postgresql://ftrepo:ftrepo@db:5432/ftrepo?schema=public
+    volumes:
+      - tdlib-data:/app/tdlib-data
     depends_on:
       db:
         condition: service_healthy
