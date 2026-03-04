@@ -1,0 +1,61 @@
+name: Delete Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to delete (e.g. v0.1)"
+        required: true
+        type: string
+      confirm:
+        description: "Type the tag again to confirm deletion"
+        required: true
+        type: string
+
+jobs:
+  delete:
+    name: Delete Release & Tag
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - name: Confirm deletion
+        run: |
+          if [ "${{ inputs.tag }}" != "${{ inputs.confirm }}" ]; then
+            echo "::error::Confirmation does not match. You entered '${{ inputs.confirm }}' but expected '${{ inputs.tag }}'"
+            exit 1
+          fi
+
+      - name: Delete GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete "${{ inputs.tag }}" --repo "${{ github.repository }}" --yes --cleanup-tag
+          echo "Deleted release and tag: ${{ inputs.tag }}"
+
+      - name: Delete Docker images
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ inputs.tag }}"
+          VERSION="${VERSION#v}"
+          OWNER="${{ github.repository_owner }}"
+
+          for IMAGE in ftrepo-app ftrepo-worker; do
+            # Find the image version ID
+            VERSION_ID=$(gh api \
+              "orgs/${OWNER}/packages/container/${IMAGE}/versions" \
+              --jq ".[] | select(.metadata.container.tags | index(\"${VERSION}\")) | .id" 2>/dev/null || true)
+
+            if [ -n "$VERSION_ID" ]; then
+              gh api --method DELETE \
+                "orgs/${OWNER}/packages/container/${IMAGE}/versions/${VERSION_ID}" 2>/dev/null || \
+              gh api --method DELETE \
+                "users/${OWNER}/packages/container/${IMAGE}/versions/${VERSION_ID}" 2>/dev/null || true
+              echo "Deleted ${IMAGE}:${VERSION}"
+            else
+              echo "No image found for ${IMAGE}:${VERSION}"
+            fi
+          done
