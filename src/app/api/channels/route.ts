@@ -11,6 +11,8 @@ function serializeChannel(c: ChannelProgress) {
     channelName: c.channelName,
     channelDescription: c.channelDescription,
     isActive: c.isActive,
+    isForum: c.isForum,
+    forumTopics: c.forumTopics ?? [],
     lastMessageId: Number(c.lastMessageId),
     totalMessages: c.totalMessages,
     ipaCount: c.ipaCount,
@@ -74,7 +76,7 @@ export const POST = withAuth(async (request) => {
 export const PUT = withAuth(async (request) => {
   try {
     const body = await request.json();
-    const { channelId, isActive, channelName } = body;
+    const { channelId, isActive, channelName, forumTopics } = body;
 
     if (!channelId) {
       return NextResponse.json(
@@ -88,6 +90,7 @@ export const PUT = withAuth(async (request) => {
       data: {
         ...(isActive !== undefined && { isActive }),
         ...(channelName && { channelName }),
+        ...(forumTopics !== undefined && { forumTopics }),
       },
     });
 

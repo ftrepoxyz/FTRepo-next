@@ -2,6 +2,7 @@ import type { Client as TdlClient } from "tdl";
 import { prisma } from "../db";
 import { logger } from "../logger";
 import { resolveChannelInfo } from "./channel-info";
+import { parseForumTopics } from "./forum-topics";
 
 /**
  * Scan a Telegram channel for IPA files.
@@ -38,8 +39,22 @@ export async function scanChannel(
       return { newMessages: 0, ipaMessages: 0 };
     }
 
-    // Update channel name and description from Telegram
+    // Update channel name, description, and forum topics from Telegram
     await resolveChannelInfo(channelId);
+
+    // Reload progress to get updated forum topic data
+    progress = await prisma.channelProgress.findUnique({
+      where: { channelId },
+    });
+    if (!progress) return { newMessages: 0, ipaMessages: 0 };
+
+    // Build set of disabled topic IDs for forum channels
+    const disabledTopicIds = new Set<number>();
+    if (progress.isForum) {
+      for (const t of parseForumTopics(progress.forumTopics)) {
+        if (!t.enabled) disabledTopicIds.add(t.id);
+      }
+    }
 
     // Get channel message history starting from last known position
     let fromMessageId = Number(progress.lastMessageId);
@@ -58,7 +73,7 @@ export async function scanChannel(
         offset: 0,
         limit: fetchLimit,
         only_local: false,
-      })) as { messages?: Array<{ id: number; content: { _: string; document?: { file_name?: string; document?: { size?: number; id?: number } }; caption?: { text?: string } } }> };
+      })) as { messages?: Array<{ id: number; message_thread_id?: number; content: { _: string; document?: { file_name?: string; document?: { size?: number; id?: number } }; caption?: { text?: string } } }> };
 
       const messages = history.messages || [];
       if (messages.length === 0) {
@@ -80,6 +95,24 @@ export async function scanChannel(
         });
 
         if (existing) continue;
+
+        // Skip messages from disabled forum topics
+        if (
+          disabledTopicIds.size > 0 &&
+          msg.message_thread_id &&
+          disabledTopicIds.has(msg.message_thread_id)
+        ) {
+          await prisma.processedMessage.create({
+            data: {
+              channelId,
+              messageId: msg.id,
+              hasIpa: false,
+              status: "skipped",
+            },
+          });
+          newMessages++;
+          continue;
+        }
 
         newMessages++;
 

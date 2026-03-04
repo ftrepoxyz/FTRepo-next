@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -40,6 +41,9 @@ import {
   Save,
   Undo2,
   Bomb,
+  ChevronDown,
+  ChevronRight,
+  RefreshCw,
 } from "lucide-react";
 import { UsersTab } from "@/components/settings/users-tab";
 
@@ -129,12 +133,21 @@ function NumberInput({
   );
 }
 
+interface ForumTopic {
+  id: number;
+  name: string;
+  iconColor: number;
+  enabled: boolean;
+}
+
 interface Channel {
   id: number;
   channelId: string;
   channelName: string | null;
   channelDescription: string | null;
   isActive: boolean;
+  isForum: boolean;
+  forumTopics: ForumTopic[];
 }
 
 type SettingsMap = Record<string, string | number | boolean | string[]>;
@@ -152,6 +165,7 @@ export function SettingsPanel() {
   const [settings, setSettings] = useState<SettingsMap>({});
   const [savedSettings, setSavedSettings] = useState<SettingsMap>({});
   const [channels, setChannels] = useState<Channel[]>([]);
+  const [savedChannels, setSavedChannels] = useState<Channel[]>([]);
   const [newChannel, setNewChannel] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -203,8 +217,17 @@ export function SettingsPanel() {
         return true;
       }
     }
+    // Check for forum topic changes
+    for (const ch of channels) {
+      const saved = savedChannels.find((s) => s.channelId === ch.channelId);
+      if (!saved) continue;
+      if (ch.forumTopics?.length !== saved.forumTopics?.length) return true;
+      for (let i = 0; i < (ch.forumTopics?.length ?? 0); i++) {
+        if (ch.forumTopics[i]?.enabled !== saved.forumTopics[i]?.enabled) return true;
+      }
+    }
     return false;
-  }, [settings, savedSettings]);
+  }, [settings, savedSettings, channels, savedChannels]);
 
   const isDirtyRef = useRef(false);
   isDirtyRef.current = isDirty;
@@ -252,7 +275,10 @@ export function SettingsPanel() {
         setSavedSettings(settingsData.data);
         fetchBranches();
       }
-      if (channelsData.success) setChannels(channelsData.data);
+      if (channelsData.success) {
+        setChannels(channelsData.data);
+        setSavedChannels(channelsData.data);
+      }
       if (meData.success) setCurrentUser(meData.user);
     } catch {
       toast.error("Failed to load settings");
@@ -265,6 +291,66 @@ export function SettingsPanel() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  const [expandedForums, setExpandedForums] = useState<Set<string>>(new Set());
+  const [refreshingTopics, setRefreshingTopics] = useState<Set<string>>(new Set());
+
+  const toggleForumExpanded = (channelId: string) => {
+    setExpandedForums((prev) => {
+      const next = new Set(prev);
+      if (next.has(channelId)) next.delete(channelId);
+      else next.add(channelId);
+      return next;
+    });
+  };
+
+  const toggleTopicEnabled = (
+    channel: Channel,
+    topicId: number,
+    enabled: boolean
+  ) => {
+    const updatedTopics = channel.forumTopics.map((t) =>
+      t.id === topicId ? { ...t, enabled } : t
+    );
+    setChannels((prev) =>
+      prev.map((ch) =>
+        ch.channelId === channel.channelId
+          ? { ...ch, forumTopics: updatedTopics }
+          : ch
+      )
+    );
+  };
+
+  const refreshTopics = async (channelId: string) => {
+    setRefreshingTopics((prev) => new Set(prev).add(channelId));
+    try {
+      const res = await fetch("/api/channels/refresh-topics", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ channelId }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        const update = (ch: Channel) =>
+          ch.channelId === channelId
+            ? { ...ch, isForum: data.data.isForum, forumTopics: data.data.forumTopics }
+            : ch;
+        setChannels((prev) => prev.map(update));
+        setSavedChannels((prev) => prev.map(update));
+        toast.success("Topics refreshed");
+      } else {
+        toast.error(data.error || "Failed to refresh topics");
+      }
+    } catch {
+      toast.error("Failed to refresh topics");
+    } finally {
+      setRefreshingTopics((prev) => {
+        const next = new Set(prev);
+        next.delete(channelId);
+        return next;
+      });
+    }
+  };
 
   const [newTweak, setNewTweak] = useState("");
   const [nukeOpen, setNukeOpen] = useState(false);
@@ -288,12 +374,40 @@ export function SettingsPanel() {
           changed[key] = a;
         }
       }
-      await fetch("/api/settings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(changed),
-      });
+
+      // Save settings + dirty forum topic changes in parallel
+      const topicSaves: Promise<unknown>[] = [];
+      for (const ch of channels) {
+        const saved = savedChannels.find((s) => s.channelId === ch.channelId);
+        if (!saved) continue;
+        const hasChanges =
+          ch.forumTopics?.length !== saved.forumTopics?.length ||
+          ch.forumTopics?.some((t, i) => t.enabled !== saved.forumTopics[i]?.enabled);
+        if (hasChanges) {
+          topicSaves.push(
+            fetch("/api/channels", {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                channelId: ch.channelId,
+                forumTopics: ch.forumTopics,
+              }),
+            })
+          );
+        }
+      }
+
+      await Promise.all([
+        fetch("/api/settings", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(changed),
+        }),
+        ...topicSaves,
+      ]);
+
       setSavedSettings({ ...settings });
+      setSavedChannels(channels.map((ch) => ({ ...ch })));
       toast.success("Settings saved");
       fetchBranches();
     } catch {
@@ -305,6 +419,7 @@ export function SettingsPanel() {
 
   const discardChanges = () => {
     setSettings({ ...savedSettings });
+    setChannels(savedChannels.map((ch) => ({ ...ch })));
   };
 
   const telegramAuthAction = async (
@@ -905,51 +1020,108 @@ export function SettingsPanel() {
               </Button>
             </div>
             <div className="space-y-2">
-              {channels.map((ch) => (
+              {channels.map((ch) => {
+                const enabledCount = ch.forumTopics?.filter((t) => t.enabled).length ?? 0;
+                const totalTopics = ch.forumTopics?.length ?? 0;
+                const isExpanded = expandedForums.has(ch.channelId);
+                const isRefreshing = refreshingTopics.has(ch.channelId);
+
+                return (
                 <div
                   key={ch.channelId}
-                  className="flex items-center gap-4 rounded-lg border px-4 py-3"
+                  className="rounded-lg border"
                 >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium leading-none">
-                        {ch.channelName || ch.channelId}
-                      </p>
-                      <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] font-mono text-muted-foreground">
-                        {ch.channelId}
-                      </span>
+                  <div className="flex items-center gap-4 px-4 py-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium leading-none">
+                          {ch.channelName || ch.channelId}
+                        </p>
+                        <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] font-mono text-muted-foreground">
+                          {ch.channelId}
+                        </span>
+                      </div>
+                      {ch.channelDescription && (
+                        <p className="mt-1 text-xs text-muted-foreground line-clamp-1">
+                          {ch.channelDescription}
+                        </p>
+                      )}
                     </div>
-                    {ch.channelDescription && (
-                      <p className="mt-1 text-xs text-muted-foreground line-clamp-1">
-                        {ch.channelDescription}
-                      </p>
-                    )}
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Switch
+                        checked={ch.isActive}
+                        onCheckedChange={async (active) => {
+                          await fetch("/api/channels", {
+                            method: "PUT",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              channelId: ch.channelId,
+                              isActive: active,
+                            }),
+                          });
+                          loadData();
+                        }}
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeChannel(ch.channelId)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <Switch
-                      checked={ch.isActive}
-                      onCheckedChange={async (active) => {
-                        await fetch("/api/channels", {
-                          method: "PUT",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({
-                            channelId: ch.channelId,
-                            isActive: active,
-                          }),
-                        });
-                        loadData();
-                      }}
-                    />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => removeChannel(ch.channelId)}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
+
+                  {ch.isForum && totalTopics > 0 && (
+                    <div className="border-t px-4 py-2">
+                      <div className="flex items-center justify-between">
+                        <button
+                          className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                          onClick={() => toggleForumExpanded(ch.channelId)}
+                        >
+                          {isExpanded ? (
+                            <ChevronDown className="h-3.5 w-3.5" />
+                          ) : (
+                            <ChevronRight className="h-3.5 w-3.5" />
+                          )}
+                          Forum &middot; {totalTopics} topics ({enabledCount} enabled)
+                        </button>
+                        <button
+                          className="text-muted-foreground hover:text-foreground transition-colors p-1"
+                          onClick={() => refreshTopics(ch.channelId)}
+                          disabled={isRefreshing}
+                          title="Refresh topics from Telegram"
+                        >
+                          <RefreshCw
+                            className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin" : ""}`}
+                          />
+                        </button>
+                      </div>
+                      {isExpanded && (
+                        <div className="mt-2 space-y-1 pb-1">
+                          {ch.forumTopics.map((topic) => (
+                            <label
+                              key={topic.id}
+                              className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted/50 cursor-pointer"
+                            >
+                              <Checkbox
+                                checked={topic.enabled}
+                                onCheckedChange={(checked) =>
+                                  toggleTopicEnabled(ch, topic.id, checked === true)
+                                }
+                              />
+                              <span className={topic.enabled ? "" : "text-muted-foreground line-through"}>
+                                {topic.name}
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-              ))}
+                );
+              })}
               {channels.length === 0 && (
                 <p className="text-sm text-muted-foreground">
                   No channels configured
