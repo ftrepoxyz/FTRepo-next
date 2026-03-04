@@ -1,78 +1,5 @@
-import { readFileSync } from "fs";
-import { resolve } from "path";
-import { parse as parseYaml } from "yaml";
-import { z } from "zod/v4";
 import { prisma } from "./db";
-import type { FileConfig, AppSettings, TweakConfig } from "@/types/config";
-
-// --- File-based config (source, categories, news) — stays sync ---
-
-const SourceSchema = z.object({
-  name: z.string().default("FTRepo"),
-  subtitle: z.string().default("iOS App Repository"),
-  description: z.string().default("Automated iOS IPA distribution"),
-  iconURL: z.string().default(""),
-  headerURL: z.string().default(""),
-  website: z.string().default(""),
-  tintColor: z.string().default("#5C7AEA"),
-  featuredApps: z.array(z.string()).default([]),
-});
-
-const CategorySchema = z.object({
-  name: z.string(),
-  id: z.string(),
-});
-
-const NewsSchema = z.object({
-  title: z.string(),
-  identifier: z.string(),
-  caption: z.string(),
-  date: z.string(),
-  tintColor: z.string().optional(),
-  imageURL: z.string().optional(),
-  url: z.string().optional(),
-  appID: z.string().optional(),
-  notify: z.boolean().optional(),
-});
-
-const DEFAULT_SOURCE = {
-  name: "FTRepo",
-  subtitle: "iOS App Repository",
-  description: "Automated iOS IPA distribution",
-  iconURL: "",
-  headerURL: "",
-  website: "",
-  tintColor: "#5C7AEA",
-  featuredApps: [] as string[],
-};
-
-const ConfigFileSchema = z.object({
-  source: SourceSchema.optional(),
-  categories: z.array(CategorySchema).default([
-    { name: "Tweaked", id: "tweaked" },
-    { name: "Other", id: "other" },
-  ]),
-  news: z.array(NewsSchema).default([]),
-}).transform((data) => ({
-  ...data,
-  source: data.source ?? DEFAULT_SOURCE,
-}));
-
-let cachedFileConfig: FileConfig | null = null;
-
-export function getFileConfig(): FileConfig {
-  if (cachedFileConfig) return cachedFileConfig;
-
-  try {
-    const configPath = resolve(process.cwd(), ".github/config.yml");
-    const raw = readFileSync(configPath, "utf-8");
-    cachedFileConfig = ConfigFileSchema.parse(parseYaml(raw)) as FileConfig;
-  } catch {
-    cachedFileConfig = ConfigFileSchema.parse({}) as FileConfig;
-  }
-
-  return cachedFileConfig;
-}
+import type { AppSettings, TweakConfig } from "@/types/config";
 
 // --- DB-backed settings with TTL cache ---
 
@@ -97,6 +24,9 @@ const SETTINGS_DEFAULTS: Record<string, string> = {
   known_tweaks: JSON.stringify(DEFAULT_KNOWN_TWEAKS),
   source_name: "FTRepo",
   source_description: "Automated iOS IPA distribution",
+  source_subtitle: "iOS App Repository",
+  source_icon_url: "",
+  source_tint_color: "#5C7AEA",
   site_domain: "",
   system_enabled: "true",
 };
@@ -134,6 +64,9 @@ export async function getSettings(): Promise<AppSettings> {
     known_tweaks: dbMap.get("known_tweaks") ?? SETTINGS_DEFAULTS.known_tweaks,
     source_name: dbMap.get("source_name") ?? SETTINGS_DEFAULTS.source_name,
     source_description: dbMap.get("source_description") ?? SETTINGS_DEFAULTS.source_description,
+    source_subtitle: dbMap.get("source_subtitle") ?? SETTINGS_DEFAULTS.source_subtitle,
+    source_icon_url: dbMap.get("source_icon_url") ?? SETTINGS_DEFAULTS.source_icon_url,
+    source_tint_color: dbMap.get("source_tint_color") ?? SETTINGS_DEFAULTS.source_tint_color,
     site_domain: dbMap.get("site_domain") ?? SETTINGS_DEFAULTS.site_domain,
     system_enabled: dbMap.get("system_enabled") ?? SETTINGS_DEFAULTS.system_enabled,
   };
@@ -176,6 +109,9 @@ export async function getSettings(): Promise<AppSettings> {
     known_tweaks: jsonTweaks("known_tweaks", DEFAULT_KNOWN_TWEAKS),
     source_name: raw.source_name,
     source_description: raw.source_description,
+    source_subtitle: raw.source_subtitle,
+    source_icon_url: raw.source_icon_url,
+    source_tint_color: raw.source_tint_color,
     site_domain: raw.site_domain,
     system_enabled: raw.system_enabled === "true",
   };

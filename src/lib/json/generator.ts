@@ -1,5 +1,5 @@
 import { prisma } from "../db";
-import { getSettings, getFileConfig } from "../config";
+import { getSettings } from "../config";
 import { logger } from "../logger";
 import { generateAltStoreJson } from "./altstore";
 import { generateESignJson } from "./esign";
@@ -24,7 +24,11 @@ export async function generateAllJson(
   publish: boolean = true
 ): Promise<GenerationResult> {
   const settings = await getSettings();
-  const fileConfig = getFileConfig();
+  const source = {
+    name: settings.source_name,
+    iconURL: settings.source_icon_url,
+    tintColor: settings.source_tint_color,
+  };
   const maxVersions = settings.max_versions_per_app;
   const knownTweaks = settings.known_tweaks;
 
@@ -50,10 +54,10 @@ export async function generateAllJson(
 
   await logger.info("generate", `Generating JSON for ${ipas.length} IPAs`);
 
-  const altstore = generateAltStoreJson(ipas, fileConfig, maxVersions, knownTweaks);
-  const esign = generateESignJson(ipas, fileConfig, knownTweaks, channelPriorities);
-  const scarlet = generateScarletJson(ipas, fileConfig, knownTweaks, channelPriorities);
-  const feather = generateFeatherJson(ipas, fileConfig, maxVersions, knownTweaks);
+  const altstore = generateAltStoreJson(ipas, source, maxVersions, knownTweaks);
+  const esign = generateESignJson(ipas, source, knownTweaks, channelPriorities);
+  const scarlet = generateScarletJson(ipas, source, knownTweaks, channelPriorities);
+  const feather = generateFeatherJson(ipas, source, maxVersions, knownTweaks);
 
   // Count unique apps using composite keys
   const compositeGroups = groupByCompositeKey(ipas, knownTweaks);

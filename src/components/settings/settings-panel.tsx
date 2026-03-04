@@ -692,6 +692,43 @@ export function SettingsPanel() {
                 />
               </div>
               <div className="space-y-2">
+                <Label>Subtitle</Label>
+                <Input
+                  value={String(settings.source_subtitle || "")}
+                  onChange={(e) =>
+                    updateSetting("source_subtitle", e.target.value)
+                  }
+                  placeholder="e.g., iOS App Repository"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Icon URL</Label>
+                <Input
+                  value={String(settings.source_icon_url || "")}
+                  onChange={(e) =>
+                    updateSetting("source_icon_url", e.target.value)
+                  }
+                  placeholder="https://example.com/icon.png"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Tint Color</Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={String(settings.source_tint_color || "")}
+                    onChange={(e) =>
+                      updateSetting("source_tint_color", e.target.value)
+                    }
+                    placeholder="#5C7AEA"
+                    className="flex-1"
+                  />
+                  <div
+                    className="h-9 w-9 rounded-md border shrink-0"
+                    style={{ backgroundColor: String(settings.source_tint_color || "#5C7AEA") }}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
                 <Label>Site Domain</Label>
                 <Input
                   value={String(settings.site_domain || "")}

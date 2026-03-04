@@ -5,12 +5,18 @@ import { useState, useEffect } from "react";
 interface Branding {
   source_name: string;
   source_description: string;
+  source_subtitle: string;
+  source_icon_url: string;
+  source_tint_color: string;
   site_domain: string;
 }
 
 const DEFAULT_BRANDING: Branding = {
   source_name: "FTRepo",
   source_description: "Automated iOS IPA distribution",
+  source_subtitle: "iOS App Repository",
+  source_icon_url: "",
+  source_tint_color: "#5C7AEA",
   site_domain: "",
 };
 

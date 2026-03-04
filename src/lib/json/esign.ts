@@ -1,5 +1,5 @@
 import { DownloadedIpa } from "@prisma/client";
-import { FileConfig, TweakConfig } from "@/types/config";
+import { TweakConfig } from "@/types/config";
 import { getLatestPerCompositeKey } from "./grouping";
 
 interface ESignRepo {
@@ -28,7 +28,7 @@ interface ESignApp {
  */
 export function generateESignJson(
   ipas: DownloadedIpa[],
-  config: FileConfig,
+  source: { name: string; tintColor: string },
   knownTweaks: TweakConfig[],
   channelPriorities?: Map<string, number>
 ): string {
@@ -47,13 +47,13 @@ export function generateESignJson(
       iconURL: ipa.iconUrl || "",
       localizedDescription: ipa.description || ipa.appName,
       screenshotURLs: (ipa.screenshotUrls as string[]) || [],
-      tintColor: config.source.tintColor,
+      tintColor: source.tintColor,
     });
   }
 
   const repo: ESignRepo = {
-    name: config.source.name,
-    identifier: `com.${config.source.name.toLowerCase().replace(/[^a-z0-9]/g, "")}.source`,
+    name: source.name,
+    identifier: `com.${source.name.toLowerCase().replace(/[^a-z0-9]/g, "")}.source`,
     apps,
   };
 

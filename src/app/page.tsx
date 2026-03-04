@@ -1,5 +1,4 @@
 import { prisma } from "@/lib/db";
-import { getFileConfig } from "@/lib/config";
 import { StartPage } from "@/components/start-page";
 
 export const dynamic = "force-dynamic";
@@ -12,18 +11,6 @@ export default async function Home() {
   let siteDomain = "";
 
   try {
-    const fileConfig = getFileConfig();
-    sourceName = fileConfig.source.name || sourceName;
-    sourceSubtitle =
-      fileConfig.source.subtitle ||
-      fileConfig.source.description ||
-      sourceSubtitle;
-    tintColor = fileConfig.source.tintColor || tintColor;
-  } catch {
-    // File config not available, use defaults
-  }
-
-  try {
     const settings = await prisma.setting.findMany({
       where: {
         key: {
@@ -32,7 +19,8 @@ export default async function Home() {
             "github_repo",
             "github_branch",
             "source_name",
-            "source_description",
+            "source_subtitle",
+            "source_tint_color",
             "site_domain",
           ],
         },
@@ -41,7 +29,8 @@ export default async function Home() {
     const map = Object.fromEntries(settings.map((s) => [s.key, s.value]));
 
     if (map.source_name) sourceName = map.source_name;
-    if (map.source_description) sourceSubtitle = map.source_description;
+    if (map.source_subtitle) sourceSubtitle = map.source_subtitle;
+    if (map.source_tint_color) tintColor = map.source_tint_color;
     if (map.site_domain) siteDomain = map.site_domain;
 
     const owner =

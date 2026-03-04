@@ -5,7 +5,7 @@ export async function GET() {
   try {
     const rows = await prisma.setting.findMany({
       where: {
-        key: { in: ["source_name", "source_description", "site_domain"] },
+        key: { in: ["source_name", "source_description", "source_subtitle", "source_icon_url", "source_tint_color", "site_domain"] },
       },
     });
     const map = Object.fromEntries(rows.map((r) => [r.key, r.value]));
@@ -14,6 +14,9 @@ export async function GET() {
       {
         source_name: map.source_name || "FTRepo",
         source_description: map.source_description || "Automated iOS IPA distribution",
+        source_subtitle: map.source_subtitle || "iOS App Repository",
+        source_icon_url: map.source_icon_url || "",
+        source_tint_color: map.source_tint_color || "#5C7AEA",
         site_domain: map.site_domain || "",
       },
       {
@@ -24,6 +27,9 @@ export async function GET() {
     return NextResponse.json({
       source_name: "FTRepo",
       source_description: "Automated iOS IPA distribution",
+      source_subtitle: "iOS App Repository",
+      source_icon_url: "",
+      source_tint_color: "#5C7AEA",
       site_domain: "",
     });
   }

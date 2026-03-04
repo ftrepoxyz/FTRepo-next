@@ -1,31 +1,3 @@
-export interface SourceConfig {
-  name: string;
-  subtitle: string;
-  description: string;
-  iconURL: string;
-  headerURL: string;
-  website: string;
-  tintColor: string;
-  featuredApps: string[];
-}
-
-export interface CategoryConfig {
-  name: string;
-  id: string;
-}
-
-export interface NewsEntry {
-  title: string;
-  identifier: string;
-  caption: string;
-  date: string;
-  tintColor?: string;
-  imageURL?: string;
-  url?: string;
-  appID?: string;
-  notify?: boolean;
-}
-
 export interface AltStoreApp {
   name: string;
   bundleIdentifier: string;
@@ -84,12 +56,6 @@ export interface TweakConfig {
   lockedChannelId?: string | null;
 }
 
-export interface FileConfig {
-  source: SourceConfig;
-  categories: CategoryConfig[];
-  news: NewsEntry[];
-}
-
 export interface AppSettings {
   telegram_api_id: string;
   telegram_api_hash: string;
@@ -109,6 +75,9 @@ export interface AppSettings {
   known_tweaks: TweakConfig[];
   source_name: string;
   source_description: string;
+  source_subtitle: string;
+  source_icon_url: string;
+  source_tint_color: string;
   site_domain: string;
   system_enabled: boolean;
 }
