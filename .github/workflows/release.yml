@@ -92,8 +92,7 @@ jobs:
           tags: |
             ${{ env.IMAGE_PREFIX }}-app:${{ inputs.version }}
             ${{ env.IMAGE_PREFIX }}-app:latest
-          cache-from: type=gha,scope=app
-          cache-to: type=gha,mode=max,scope=app
+          no-cache: true
 
       - name: Build and push worker image
         uses: docker/build-push-action@v6
@@ -104,8 +103,7 @@ jobs:
           tags: |
             ${{ env.IMAGE_PREFIX }}-worker:${{ inputs.version }}
             ${{ env.IMAGE_PREFIX }}-worker:latest
-          cache-from: type=gha,scope=worker
-          cache-to: type=gha,mode=max,scope=worker
+          no-cache: true
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

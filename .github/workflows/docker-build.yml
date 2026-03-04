@@ -50,8 +50,7 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=app
-          cache-to: type=gha,mode=max,scope=app
+          no-cache: true
 
   build-worker:
     name: Build Worker Image
@@ -91,5 +90,4 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=worker
-          cache-to: type=gha,mode=max,scope=worker
+          no-cache: true
