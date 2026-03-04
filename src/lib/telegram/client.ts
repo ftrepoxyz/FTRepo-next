@@ -1,5 +1,5 @@
 import { createClient, configure, type Client } from "tdl";
-import { mkdirSync } from "fs";
+import { mkdirSync, rmSync } from "fs";
 import { resolve } from "path";
 import { getSettings } from "../config";
 import { logger } from "../logger";
@@ -132,8 +132,27 @@ export async function startTelegramAuth(): Promise<void> {
     filesDirectory: filesDir,
   });
 
-  client.on("error", (err) => {
-    logger.error("system", "TDLib error", { error: String(err) });
+  client.on("error", async (err) => {
+    const errStr = String(err);
+    logger.error("system", "TDLib error", { error: errStr });
+
+    if (errStr.includes("AUTH_KEY_DUPLICATED")) {
+      // Session is invalid — close client, wipe session data, prompt re-login
+      try {
+        await client.close();
+      } catch {
+        // ignore
+      }
+      mgr.client = null;
+      rmSync(dbDir, { recursive: true, force: true });
+      rmSync(filesDir, { recursive: true, force: true });
+      setState(
+        mgr,
+        "error",
+        "Session invalidated (used elsewhere). Please reconnect to log in again."
+      );
+      logger.warn("system", "Cleared stale TDLib session due to AUTH_KEY_DUPLICATED");
+    }
   });
 
   mgr.client = client;
@@ -182,11 +201,23 @@ export async function startTelegramAuth(): Promise<void> {
       setState(mgr, "ready", null);
       logger.success("system", "Telegram client authenticated");
     })
-    .catch((err) => {
-      if (mgr.state !== "error") {
-        setState(mgr, "error", String(err));
+    .catch(async (err) => {
+      const errStr = String(err);
+      if (errStr.includes("AUTH_KEY_DUPLICATED")) {
+        try { await client.close(); } catch { /* ignore */ }
+        mgr.client = null;
+        rmSync(dbDir, { recursive: true, force: true });
+        rmSync(filesDir, { recursive: true, force: true });
+        setState(
+          mgr,
+          "error",
+          "Session invalidated (used elsewhere). Please reconnect to log in again."
+        );
+        logger.warn("system", "Cleared stale TDLib session due to AUTH_KEY_DUPLICATED");
+      } else if (mgr.state !== "error") {
+        setState(mgr, "error", errStr);
       }
-      logger.error("system", "Telegram auth failed", { error: String(err) });
+      logger.error("system", "Telegram auth failed", { error: errStr });
     });
 
   // Wait for either immediate auth (existing session) or state transition
