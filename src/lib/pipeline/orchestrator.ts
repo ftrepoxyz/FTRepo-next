@@ -103,8 +103,8 @@ export async function processNextIpa(
         screenshotUrls: appStoreData?.screenshots || [],
         description: (() => {
           const channel = entry.channelId.startsWith("@") ? entry.channelId : `@${entry.channelId}`;
-          const desc = entry.messageText || appStoreData?.description || null;
-          if (!desc) return `from ${channel} |`;
+          const desc = entry.messageText || null;
+          if (!desc) return `from ${channel}`;
           return `from ${channel} |\n----------------\n${desc}`;
         })(),
         developerName: appStoreData?.developer || null,

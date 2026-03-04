@@ -251,41 +251,12 @@ function useCarouselDrag() {
   };
 }
 
-const signerIcons: Record<string, React.ReactNode> = {
-  SideStore: (
-    <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
-      <rect width="36" height="36" rx="8" fill="#8B5CF6" />
-      <path d="M18 8C14 8 11 11 11 14c0 2 1.5 3.5 3 4.5 1.5 1 2.5 1.8 2.5 3.5 0 1.5-1 2.5-2.5 2.5s-2.5-1-2.5-2.5" stroke="white" strokeWidth="2.5" strokeLinecap="round" fill="none" />
-      <path d="M18 28c4 0 7-3 7-6 0-2-1.5-3.5-3-4.5-1.5-1-2.5-1.8-2.5-3.5 0-1.5 1-2.5 2.5-2.5s2.5 1 2.5 2.5" stroke="white" strokeWidth="2.5" strokeLinecap="round" fill="none" />
-    </svg>
-  ),
-  "AltStore Classic": (
-    <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
-      <rect width="36" height="36" rx="8" fill="#14B8A6" />
-      <path d="M18 9L26 18L18 27L10 18L18 9Z" stroke="white" strokeWidth="2.5" strokeLinejoin="round" fill="none" />
-      <path d="M18 14L22 18L18 22L14 18L18 14Z" fill="white" fillOpacity="0.3" />
-    </svg>
-  ),
-  Feather: (
-    <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
-      <rect width="36" height="36" rx="8" fill="#EC4899" />
-      <path d="M12 28L14 20C14 20 15 14 18 11C21 8 25 8 25 8C25 8 25 12 22 15C19 18 13 19 13 19L12 28Z" fill="white" fillOpacity="0.9" />
-      <path d="M14 20L22 12" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
-  ),
-  StikStore: (
-    <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
-      <rect width="36" height="36" rx="8" fill="#2997FF" />
-      <rect x="10" y="12" width="16" height="14" rx="2" stroke="white" strokeWidth="2.5" fill="none" />
-      <path d="M14 12V10C14 8.9 14.9 8 16 8H20C21.1 8 22 8.9 22 10V12" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
-    </svg>
-  ),
-  LiveContainer: (
-    <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
-      <rect width="36" height="36" rx="8" fill="#34C759" />
-      <path d="M14 10L26 18L14 26V10Z" fill="white" fillOpacity="0.9" />
-    </svg>
-  ),
+const signerIcons: Record<string, string> = {
+  SideStore: "/icons/sidestore.png",
+  "AltStore Classic": "/icons/altstore.png",
+  Feather: "/icons/feather.png",
+  StikStore: "/icons/stikstore.png",
+  LiveContainer: "/icons/livecontainer.png",
 };
 
 const shortUrlFormats = [
@@ -715,7 +686,14 @@ export function StartPage({
                     >
                       <div className="w-9 h-9 rounded-lg overflow-hidden shrink-0">
                         {signerIcons[signer.name] ? (
-                          signerIcons[signer.name]
+                          <img
+                            src={signerIcons[signer.name]}
+                            alt={signer.name}
+                            width={36}
+                            height={36}
+                            className="w-full h-full object-cover"
+                            loading="lazy"
+                          />
                         ) : (
                           <div
                             className="w-full h-full flex items-center justify-center text-white text-xs font-bold"
