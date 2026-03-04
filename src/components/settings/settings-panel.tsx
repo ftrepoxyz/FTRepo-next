@@ -15,6 +15,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import {
   Scan,
@@ -31,6 +39,7 @@ import {
   Play,
   Save,
   Undo2,
+  Bomb,
 } from "lucide-react";
 import { UsersTab } from "@/components/settings/users-tab";
 
@@ -130,7 +139,7 @@ interface Channel {
 
 type SettingsMap = Record<string, string | number | boolean | string[]>;
 
-const VALID_TABS = ["general", "integrations", "channels", "actions", "users"];
+const VALID_TABS = ["general", "integrations", "channels", "users", "actions"];
 
 function getInitialTab(): string {
   if (typeof window === "undefined") return "general";
@@ -258,6 +267,9 @@ export function SettingsPanel() {
   }, [loadData]);
 
   const [newTweak, setNewTweak] = useState("");
+  const [nukeOpen, setNukeOpen] = useState(false);
+  const [nukeLoading, setNukeLoading] = useState(false);
+  const [nukeConfirm, setNukeConfirm] = useState("");
 
   const updateSetting = (key: string, value: string | number | boolean | string[]) => {
     setSettings((prev) => ({ ...prev, [key]: value }));
@@ -401,10 +413,10 @@ export function SettingsPanel() {
             <SelectItem value="general">General</SelectItem>
             <SelectItem value="integrations">Integrations</SelectItem>
             <SelectItem value="channels">Channels</SelectItem>
-            <SelectItem value="actions">Admin Actions</SelectItem>
             {currentUser?.role === "admin" && (
               <SelectItem value="users">Users</SelectItem>
             )}
+            <SelectItem value="actions">Scraper</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -415,10 +427,10 @@ export function SettingsPanel() {
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="integrations">Integrations</TabsTrigger>
           <TabsTrigger value="channels">Channels</TabsTrigger>
-          <TabsTrigger value="actions">Admin Actions</TabsTrigger>
           {currentUser?.role === "admin" && (
             <TabsTrigger value="users">Users</TabsTrigger>
           )}
+          <TabsTrigger value="actions">Scraper</TabsTrigger>
         </TabsList>
       </div>
 
@@ -947,11 +959,16 @@ export function SettingsPanel() {
           </CardContent>
         </Card>
       </TabsContent>
+      {currentUser?.role === "admin" && (
+        <TabsContent value="users" className="space-y-4">
+          <UsersTab />
+        </TabsContent>
+      )}
 
       <TabsContent value="actions" className="space-y-4">
         <Card>
           <CardHeader>
-            <CardTitle>Admin Actions</CardTitle>
+            <CardTitle>Scraper</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid gap-3 sm:grid-cols-2">
@@ -998,12 +1015,87 @@ export function SettingsPanel() {
             </div>
           </CardContent>
         </Card>
+
+        <Card className="border-red-500/30">
+          <CardHeader>
+            <CardTitle className="text-red-600 dark:text-red-400">Danger Zone</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Permanently delete all queue entries, downloaded IPAs from the database, and all GitHub releases. This action cannot be undone.
+            </p>
+            <Button
+              variant="destructive"
+              className="justify-start"
+              onClick={() => {
+                setNukeConfirm("");
+                setNukeOpen(true);
+              }}
+            >
+              <Bomb className="mr-2 h-4 w-4" />
+              Nuke Everything
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Dialog open={nukeOpen} onOpenChange={setNukeOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="text-red-600 dark:text-red-400">
+                Are you absolutely sure?
+              </DialogTitle>
+              <DialogDescription>
+                This will permanently delete <strong>all queue entries</strong>, <strong>all downloaded IPAs</strong> from the database, and <strong>all GitHub releases</strong>. Channel scan progress will be reset. This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2">
+              <Label>
+                Type <span className="font-mono font-bold">NUKE</span> to confirm
+              </Label>
+              <Input
+                value={nukeConfirm}
+                onChange={(e) => setNukeConfirm(e.target.value)}
+                placeholder="NUKE"
+              />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setNukeOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={nukeConfirm !== "NUKE" || nukeLoading}
+                onClick={async () => {
+                  setNukeLoading(true);
+                  try {
+                    toast.info("Nuking everything...");
+                    const res = await fetch("/api/actions/nuke", { method: "POST" });
+                    const data = await res.json();
+                    if (data.success) {
+                      toast.success(data.message);
+                    } else {
+                      toast.error(data.error || "Nuke failed");
+                    }
+                  } catch {
+                    toast.error("Nuke request failed");
+                  } finally {
+                    setNukeLoading(false);
+                    setNukeOpen(false);
+                    setNukeConfirm("");
+                  }
+                }}
+              >
+                {nukeLoading ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Bomb className="mr-2 h-4 w-4" />
+                )}
+                Nuke Everything
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </TabsContent>
-      {currentUser?.role === "admin" && (
-        <TabsContent value="users" className="space-y-4">
-          <UsersTab />
-        </TabsContent>
-      )}
 
     </Tabs>
     </>

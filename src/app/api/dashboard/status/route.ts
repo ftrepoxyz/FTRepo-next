@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { getSettings } from "@/lib/config";
 
 export async function GET() {
   try {
+    const settings = await getSettings();
     const [
       totalIpas,
       totalDownloads,
@@ -45,7 +47,7 @@ export async function GET() {
         storageUsed,
         activeChannels,
         queueDepth: pendingQueue,
-        workerStatus: "running",
+        workerStatus: settings.system_enabled ? "running" : "stopped",
         lastScanAt: lastScan?.createdAt.toISOString(),
         lastJsonGenAt: lastJsonGen?.createdAt.toISOString(),
         uptime: process.uptime(),

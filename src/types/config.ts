@@ -104,4 +104,5 @@ export interface AppSettings {
   source_name: string;
   source_description: string;
   site_domain: string;
+  system_enabled: boolean;
 }

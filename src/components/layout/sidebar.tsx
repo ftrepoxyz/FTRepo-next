@@ -12,6 +12,7 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
+  Power,
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,7 @@ import {
 } from "@/components/ui/sheet";
 import { useMobileSidebar } from "@/hooks/use-mobile-sidebar";
 import { useBranding } from "@/hooks/use-branding";
+import { useSystemStatus } from "@/hooks/use-system-status";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -31,6 +33,55 @@ const navItems = [
   { href: "/logs", label: "Logs", icon: ScrollText },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
+
+function SystemStatus({
+  collapsed = false,
+  enabled,
+  loading,
+  onToggle,
+}: {
+  collapsed?: boolean;
+  enabled: boolean;
+  loading: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      onClick={onToggle}
+      disabled={loading}
+      className={cn(
+        "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs font-medium transition-colors",
+        "hover:bg-sidebar-accent/50",
+        collapsed ? "justify-center" : "",
+        loading && "opacity-50 cursor-not-allowed"
+      )}
+      title={enabled ? "Stop system" : "Start system"}
+    >
+      <span className="relative flex h-2 w-2 shrink-0">
+        {enabled && (
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+        )}
+        <span
+          className={cn(
+            "relative inline-flex h-2 w-2 rounded-full",
+            enabled ? "bg-emerald-500" : "bg-red-500"
+          )}
+        />
+      </span>
+      {!collapsed && (
+        <>
+          <span className="text-sidebar-foreground/70">
+            {enabled ? "System Online" : "System Offline"}
+          </span>
+          <Power className={cn(
+            "ml-auto h-3.5 w-3.5 shrink-0",
+            enabled ? "text-emerald-500" : "text-red-500"
+          )} />
+        </>
+      )}
+    </button>
+  );
+}
 
 function SidebarNav({ collapsed = false, onNavigate }: { collapsed?: boolean; onNavigate?: () => void }) {
   const pathname = usePathname();
@@ -63,6 +114,7 @@ function SidebarNav({ collapsed = false, onNavigate }: { collapsed?: boolean; on
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const { source_name } = useBranding();
+  const { enabled, loading, toggle } = useSystemStatus();
 
   return (
     <aside
@@ -74,7 +126,7 @@ export function Sidebar() {
       <div className="flex h-14 items-center justify-between border-b border-border px-4">
         {!collapsed && (
           <Link href="/dashboard" className="flex items-center gap-2">
-            <span className="text-lg font-bold text-sidebar-primary">
+            <span className="text-lg font-bold text-sidebar-foreground">
               {source_name}
             </span>
           </Link>
@@ -96,11 +148,12 @@ export function Sidebar() {
       <SidebarNav collapsed={collapsed} />
 
       <div className="border-t border-border p-2">
-        {!collapsed && (
-          <p className="px-3 py-2 text-xs text-muted-foreground">
-            {source_name} v0.1.0
-          </p>
-        )}
+        <SystemStatus
+          collapsed={collapsed}
+          enabled={enabled}
+          loading={loading}
+          onToggle={toggle}
+        />
       </div>
     </aside>
   );
@@ -109,6 +162,7 @@ export function Sidebar() {
 export function MobileSidebar() {
   const { open, setOpen } = useMobileSidebar();
   const { source_name } = useBranding();
+  const { enabled, loading, toggle } = useSystemStatus();
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -116,7 +170,7 @@ export function MobileSidebar() {
         <SheetTitle className="sr-only">Navigation</SheetTitle>
         <div className="flex h-14 items-center border-b border-border px-4">
           <Link href="/dashboard" className="flex items-center gap-2" onClick={() => setOpen(false)}>
-            <span className="text-lg font-bold text-sidebar-primary">
+            <span className="text-lg font-bold text-sidebar-foreground">
               {source_name}
             </span>
           </Link>
@@ -125,9 +179,11 @@ export function MobileSidebar() {
         <SidebarNav onNavigate={() => setOpen(false)} />
 
         <div className="border-t border-border p-2">
-          <p className="px-3 py-2 text-xs text-muted-foreground">
-            {source_name} v0.1.0
-          </p>
+          <SystemStatus
+            enabled={enabled}
+            loading={loading}
+            onToggle={toggle}
+          />
         </div>
       </SheetContent>
     </Sheet>

@@ -1,33 +1,17 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, Moon, Sun, LogOut, Menu } from "lucide-react";
+import { Moon, Sun, LogOut, Menu } from "lucide-react";
 import { useMobileSidebar } from "@/hooks/use-mobile-sidebar";
+import { useSystemStatus } from "@/hooks/use-system-status";
 
 export function Header() {
   const { setOpen } = useMobileSidebar();
-  const [status, setStatus] = useState<"healthy" | "unhealthy" | "loading">(
-    "loading"
-  );
+  const { enabled: systemEnabled } = useSystemStatus();
   const [dark, setDark] = useState(false);
   const [username, setUsername] = useState<string | null>(null);
-
-  const checkHealth = useCallback(async () => {
-    try {
-      const res = await fetch("/api/health");
-      setStatus(res.ok ? "healthy" : "unhealthy");
-    } catch {
-      setStatus("unhealthy");
-    }
-  }, []);
-
-  useEffect(() => {
-    checkHealth();
-    const interval = setInterval(checkHealth, 30000);
-    return () => clearInterval(interval);
-  }, [checkHealth]);
 
   useEffect(() => {
     fetch("/api/auth/me")
@@ -63,31 +47,24 @@ export function Header() {
           <Menu className="h-5 w-5" />
         </Button>
         <Badge
-          variant={
-            status === "healthy"
-              ? "default"
-              : status === "unhealthy"
-                ? "destructive"
-                : "secondary"
-          }
+          variant="outline"
           className={
-            status === "healthy"
-              ? "bg-green-600 text-white text-xs"
-              : "text-xs"
+            systemEnabled
+              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs"
+              : "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400 text-xs"
           }
         >
-          {status === "healthy"
-            ? "System Online"
-            : status === "unhealthy"
-              ? "System Offline"
-              : "Checking..."}
+          <span className="relative mr-1.5 flex h-2 w-2">
+            {systemEnabled && (
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+            )}
+            <span className={`relative inline-flex h-2 w-2 rounded-full ${systemEnabled ? "bg-emerald-500" : "bg-red-500"}`} />
+          </span>
+          {systemEnabled ? "System Online" : "System Offline"}
         </Badge>
       </div>
 
       <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" onClick={checkHealth}>
-          <RefreshCw className="h-4 w-4" />
-        </Button>
         <Button variant="ghost" size="icon" onClick={toggleDark}>
           {dark ? (
             <Sun className="h-4 w-4" />

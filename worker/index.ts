@@ -88,6 +88,12 @@ async function main() {
   await logger.success("system", "Worker started. Processing queue...");
   while (running) {
     try {
+      const currentSettings = await getSettings();
+      if (!currentSettings.system_enabled) {
+        // System is offline — wait and check again
+        await new Promise((resolve) => setTimeout(resolve, 5000));
+        continue;
+      }
       const processed = await processNextIpa(client, chatIdMap);
       if (!processed) {
         // No items in queue - wait before checking again

@@ -104,6 +104,7 @@ const SETTINGS_DEFAULTS: Record<string, string> = {
   source_name: "FTRepo",
   source_description: "Automated iOS IPA distribution",
   site_domain: "",
+  system_enabled: "true",
 };
 
 let cachedSettings: AppSettings | null = null;
@@ -140,6 +141,7 @@ export async function getSettings(): Promise<AppSettings> {
     source_name: dbMap.get("source_name") ?? SETTINGS_DEFAULTS.source_name,
     source_description: dbMap.get("source_description") ?? SETTINGS_DEFAULTS.source_description,
     site_domain: dbMap.get("site_domain") ?? SETTINGS_DEFAULTS.site_domain,
+    system_enabled: dbMap.get("system_enabled") ?? SETTINGS_DEFAULTS.system_enabled,
   };
 
   function num(key: string): number {
@@ -175,6 +177,7 @@ export async function getSettings(): Promise<AppSettings> {
     source_name: raw.source_name,
     source_description: raw.source_description,
     site_domain: raw.site_domain,
+    system_enabled: raw.system_enabled === "true",
   };
 
   cachedSettings = settings;

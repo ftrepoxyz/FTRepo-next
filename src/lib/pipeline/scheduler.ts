@@ -1,4 +1,5 @@
 import { logger } from "../logger";
+import { getSettings } from "../config";
 
 type ScheduledTask = {
   name: string;
@@ -12,6 +13,7 @@ const tasks: Map<string, ScheduledTask> = new Map();
 
 /**
  * Register a task to run at a fixed interval.
+ * Skips execution when the system is disabled.
  */
 export function scheduleTask(
   name: string,
@@ -31,6 +33,8 @@ export function scheduleTask(
 
   task.timer = setInterval(async () => {
     if (task.running) return; // Skip if previous run still active
+    const settings = await getSettings();
+    if (!settings.system_enabled) return; // Skip when system is offline
     task.running = true;
     try {
       await fn();
