@@ -276,3 +276,26 @@ export async function closeTelegramClient(): Promise<void> {
   }
   globalForTdl.telegramAuth = undefined;
 }
+
+export async function resetTelegramClient(): Promise<void> {
+  await closeTelegramClient();
+
+  // Wipe TDLib session data
+  const dbDir = resolve(process.cwd(), "tdlib-data/db");
+  const filesDir = resolve(process.cwd(), "tdlib-data/files");
+  rmSync(dbDir, { recursive: true, force: true });
+  rmSync(filesDir, { recursive: true, force: true });
+
+  // Clear credentials from DB
+  const { prisma } = await import("../db");
+  await prisma.setting.deleteMany({
+    where: {
+      key: { in: ["telegram_api_id", "telegram_api_hash", "telegram_phone"] },
+    },
+  });
+
+  const { invalidateSettingsCache } = await import("../config");
+  invalidateSettingsCache();
+
+  await logger.info("system", "Telegram integration fully reset");
+}

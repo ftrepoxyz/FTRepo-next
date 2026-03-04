@@ -1106,32 +1106,66 @@ export function SettingsPanel() {
                               : "Not connected"}
                   </span>
                 </div>
-                {telegramAuth.state === "ready" ? (
+                <div className="flex gap-2">
+                  {telegramAuth.state === "ready" ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={authLoading}
+                      onClick={() => telegramAuthAction("disconnect")}
+                    >
+                      <Unplug className="mr-1 h-4 w-4" />
+                      Disconnect
+                    </Button>
+                  ) : telegramAuth.state !== "waiting_code" &&
+                    telegramAuth.state !== "waiting_password" ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={authLoading}
+                      onClick={() => telegramAuthAction("connect")}
+                    >
+                      {authLoading ? (
+                        <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Plug className="mr-1 h-4 w-4" />
+                      )}
+                      Connect
+                    </Button>
+                  ) : null}
                   <Button
-                    variant="outline"
+                    variant="destructive"
                     size="sm"
                     disabled={authLoading}
-                    onClick={() => telegramAuthAction("disconnect")}
+                    onClick={async () => {
+                      setAuthLoading(true);
+                      try {
+                        const res = await fetch("/api/auth/telegram", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ action: "reset" }),
+                        });
+                        const data = await res.json();
+                        setTelegramAuth({
+                          state: data.state ?? "disconnected",
+                          error: data.error ?? null,
+                          passwordHint: data.passwordHint ?? "",
+                        });
+                        updateSetting("telegram_api_id", "");
+                        updateSetting("telegram_api_hash", "");
+                        updateSetting("telegram_phone", "");
+                        toast.success("Telegram integration reset");
+                      } catch {
+                        toast.error("Failed to reset Telegram");
+                      } finally {
+                        setAuthLoading(false);
+                      }
+                    }}
                   >
-                    <Unplug className="mr-1 h-4 w-4" />
-                    Disconnect
+                    <Bomb className="mr-1 h-4 w-4" />
+                    Reset
                   </Button>
-                ) : telegramAuth.state !== "waiting_code" &&
-                  telegramAuth.state !== "waiting_password" ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={authLoading}
-                    onClick={() => telegramAuthAction("connect")}
-                  >
-                    {authLoading ? (
-                      <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-                    ) : (
-                      <Plug className="mr-1 h-4 w-4" />
-                    )}
-                    Connect
-                  </Button>
-                ) : null}
+                </div>
               </div>
               {telegramAuth.error && (
                 <p className="text-xs text-red-500">{telegramAuth.error}</p>

@@ -6,6 +6,7 @@ import {
   submitAuthCode,
   submitAuthPassword,
   closeTelegramClient,
+  resetTelegramClient,
 } from "@/lib/telegram/client";
 import { getSettings } from "@/lib/config";
 
@@ -55,6 +56,9 @@ export const POST = withAuth(async (request) => {
         break;
       case "disconnect":
         await closeTelegramClient();
+        break;
+      case "reset":
+        await resetTelegramClient();
         break;
       default:
         return NextResponse.json(
