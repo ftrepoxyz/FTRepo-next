@@ -1133,73 +1133,90 @@ export function SettingsPanel() {
                   </Button>
                 ) : null}
               </div>
-              {telegramAuth.state === "waiting_code" && (
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Enter verification code"
-                    value={authCode}
-                    onChange={(e) => setAuthCode(e.target.value)}
-                    onKeyDown={(e) =>
-                      e.key === "Enter" &&
-                      authCode &&
-                      telegramAuthAction("code", { code: authCode })
-                    }
-                  />
-                  <Button
-                    disabled={authLoading || !authCode}
-                    onClick={() =>
-                      telegramAuthAction("code", { code: authCode })
-                    }
-                  >
-                    {authLoading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      "Verify"
-                    )}
-                  </Button>
-                </div>
-              )}
-              {telegramAuth.state === "waiting_password" && (
-                <div className="space-y-2">
-                  {telegramAuth.passwordHint && (
-                    <p className="text-xs text-muted-foreground">
-                      Hint: {telegramAuth.passwordHint}
-                    </p>
-                  )}
-                  <div className="flex gap-2">
-                    <Input
-                      type="password"
-                      placeholder="Enter 2FA password"
-                      value={authPassword}
-                      onChange={(e) => setAuthPassword(e.target.value)}
-                      onKeyDown={(e) =>
-                        e.key === "Enter" &&
-                        authPassword &&
-                        telegramAuthAction("password", {
-                          password: authPassword,
-                        })
-                      }
-                    />
-                    <Button
-                      disabled={authLoading || !authPassword}
-                      onClick={() =>
-                        telegramAuthAction("password", {
-                          password: authPassword,
-                        })
-                      }
-                    >
-                      {authLoading ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        "Submit"
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              )}
               {telegramAuth.error && (
                 <p className="text-xs text-red-500">{telegramAuth.error}</p>
               )}
+              <Dialog
+                open={telegramAuth.state === "waiting_code" || telegramAuth.state === "waiting_password"}
+                onOpenChange={() => {}}
+              >
+                <DialogContent onPointerDownOutside={(e) => e.preventDefault()}>
+                  <DialogHeader>
+                    <DialogTitle>
+                      {telegramAuth.state === "waiting_code"
+                        ? "Telegram Verification Code"
+                        : "Two-Factor Authentication"}
+                    </DialogTitle>
+                    <DialogDescription>
+                      {telegramAuth.state === "waiting_code"
+                        ? "A verification code has been sent to your Telegram account. Please enter it below."
+                        : "Your account has two-factor authentication enabled. Please enter your password."}
+                    </DialogDescription>
+                  </DialogHeader>
+                  {telegramAuth.state === "waiting_code" && (
+                    <div className="space-y-4">
+                      <Input
+                        placeholder="Enter verification code"
+                        value={authCode}
+                        onChange={(e) => setAuthCode(e.target.value)}
+                        onKeyDown={(e) =>
+                          e.key === "Enter" &&
+                          authCode &&
+                          telegramAuthAction("code", { code: authCode })
+                        }
+                        autoFocus
+                      />
+                      {telegramAuth.error && (
+                        <p className="text-xs text-red-500">{telegramAuth.error}</p>
+                      )}
+                    </div>
+                  )}
+                  {telegramAuth.state === "waiting_password" && (
+                    <div className="space-y-4">
+                      {telegramAuth.passwordHint && (
+                        <p className="text-sm text-muted-foreground">
+                          Hint: {telegramAuth.passwordHint}
+                        </p>
+                      )}
+                      <Input
+                        type="password"
+                        placeholder="Enter 2FA password"
+                        value={authPassword}
+                        onChange={(e) => setAuthPassword(e.target.value)}
+                        onKeyDown={(e) =>
+                          e.key === "Enter" &&
+                          authPassword &&
+                          telegramAuthAction("password", {
+                            password: authPassword,
+                          })
+                        }
+                        autoFocus
+                      />
+                      {telegramAuth.error && (
+                        <p className="text-xs text-red-500">{telegramAuth.error}</p>
+                      )}
+                    </div>
+                  )}
+                  <DialogFooter>
+                    <Button
+                      disabled={
+                        authLoading ||
+                        (telegramAuth.state === "waiting_code" ? !authCode : !authPassword)
+                      }
+                      onClick={() =>
+                        telegramAuth.state === "waiting_code"
+                          ? telegramAuthAction("code", { code: authCode })
+                          : telegramAuthAction("password", { password: authPassword })
+                      }
+                    >
+                      {authLoading ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : null}
+                      {telegramAuth.state === "waiting_code" ? "Verify" : "Submit"}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </div>
           </CardContent>
         </Card>
