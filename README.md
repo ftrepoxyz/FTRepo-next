@@ -87,8 +87,6 @@ services:
       POSTGRES_USER: ftrepo
       POSTGRES_PASSWORD: ftrepo
       POSTGRES_DB: ftrepo
-    ports:
-      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:

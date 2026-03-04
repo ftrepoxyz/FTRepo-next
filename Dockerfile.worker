@@ -17,7 +17,6 @@ COPY . .
 
 ENV NODE_ENV=production
 
-# TDLib session data persisted via volume mount
-VOLUME ["/app/tdlib-data", "/tmp/ftrepo"]
+RUN mkdir -p /app/tdlib-data /tmp/ftrepo
 
 CMD ["npx", "tsx", "worker/index.ts"]
