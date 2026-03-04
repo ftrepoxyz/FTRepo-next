@@ -2,8 +2,8 @@
 FROM node:20-slim AS deps
 WORKDIR /app
 
-COPY package.json ./
-RUN npm install --ignore-scripts
+COPY package.json package-lock.json ./
+RUN npm ci --ignore-scripts
 COPY prisma ./prisma/
 RUN npx prisma generate
 
@@ -48,4 +48,4 @@ USER nextjs
 
 EXPOSE 3000
 
-CMD ["sh", "-c", "node_modules/.bin/prisma migrate deploy && node server.js"]
+CMD ["sh", "-c", "node_modules/.bin/prisma db push --skip-generate && node server.js"]

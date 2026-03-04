@@ -8,8 +8,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-COPY package.json ./
-RUN npm install --ignore-scripts
+COPY package.json package-lock.json ./
+RUN npm ci --ignore-scripts
 COPY prisma ./prisma/
 RUN npx prisma generate
 
@@ -19,4 +19,4 @@ ENV NODE_ENV=production
 
 RUN mkdir -p /app/tdlib-data /tmp/ftrepo
 
-CMD ["sh", "-c", "npx prisma migrate deploy && npx tsx worker/index.ts"]
+CMD ["sh", "-c", "npx prisma db push --skip-generate && npx tsx worker/index.ts"]
