@@ -2,8 +2,8 @@
 FROM node:20-slim AS deps
 WORKDIR /app
 
-COPY package.json package-lock.json ./
-RUN npm ci --ignore-scripts
+COPY package.json ./
+RUN npm install --ignore-scripts
 COPY prisma ./prisma/
 RUN npx prisma generate
 
