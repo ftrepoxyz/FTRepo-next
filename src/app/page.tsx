@@ -2,6 +2,8 @@ import { prisma } from "@/lib/db";
 import { getFileConfig } from "@/lib/config";
 import { StartPage } from "@/components/start-page";
 
+export const dynamic = "force-dynamic";
+
 export default async function Home() {
   let sourceName = "FTRepo";
   let sourceSubtitle = "iOS App Repository";
