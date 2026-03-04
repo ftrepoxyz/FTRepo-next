@@ -22,7 +22,30 @@ export async function handleJsonRedirect(format: string) {
     }
 
     const url = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${format}.json`;
-    return NextResponse.redirect(url, 302);
+
+    // Proxy the JSON directly instead of redirecting, so signers that
+    // don't follow redirects (e.g. Feather) can parse the response.
+    const upstream = await fetch(url, {
+      headers: { Accept: "application/json" },
+      next: { revalidate: 60 },
+    });
+
+    if (!upstream.ok) {
+      return NextResponse.json(
+        { error: `Upstream returned ${upstream.status}` },
+        { status: upstream.status }
+      );
+    }
+
+    const body = await upstream.text();
+    return new NextResponse(body, {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json; charset=utf-8",
+        "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+        "Access-Control-Allow-Origin": "*",
+      },
+    });
   } catch {
     return NextResponse.json(
       { error: "GitHub not configured" },

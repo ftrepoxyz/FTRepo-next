@@ -47,9 +47,15 @@ export default async function Home() {
     const repo =
       map.github_repo || process.env.GITHUB_REPO || "";
     if (owner && repo) {
-      const branch =
-        map.github_branch || process.env.GITHUB_BRANCH || "main";
-      baseUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/`;
+      if (siteDomain) {
+        // Use short redirect URLs (e.g., domain.com/feather) instead of raw GitHub links
+        const domain = siteDomain.replace(/\/+$/, "");
+        baseUrl = (domain.startsWith("http") ? domain : `https://${domain}`) + "/";
+      } else {
+        const branch =
+          map.github_branch || process.env.GITHUB_BRANCH || "main";
+        baseUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/`;
+      }
     }
   } catch {
     // DB not available, use defaults

@@ -32,36 +32,41 @@ const signers = [
     scheme: (url: string) => `sidestore://source?url=${url}`,
     color: "#8B5CF6",
     file: "store.json",
+    path: "store",
   },
   {
     name: "AltStore Classic",
     scheme: (url: string) => `altstore-classic://source?url=${url}`,
     color: "#14B8A6",
     file: "store.json",
+    path: "store",
   },
   {
     name: "Feather",
     scheme: (url: string) => `feather://source/${url}`,
     color: "#EC4899",
     file: "feather.json",
+    path: "feather",
   },
   {
     name: "StikStore",
     scheme: (url: string) => `stikstore://add-source?url=${url}`,
     color: "#2997FF",
     file: "store.json",
+    path: "store",
   },
   {
     name: "LiveContainer",
     scheme: (url: string) => `livecontainer://source?url=${url}`,
     color: "#34C759",
     file: "store.json",
+    path: "store",
   },
 ];
 
 const otherFormats = [
-  { name: "ESign", file: "esign.json" },
-  { name: "Scarlet", file: "scarlet.json" },
+  { name: "ESign", file: "esign.json", path: "esign" },
+  { name: "Scarlet", file: "scarlet.json", path: "scarlet" },
 ];
 
 const perks = [
@@ -337,7 +342,8 @@ export function StartPage({
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
 
-  const storeUrl = baseUrl ? baseUrl + "store.json" : null;
+  const usesShortUrls = !!siteDomain;
+  const storeUrl = baseUrl ? baseUrl + (usesShortUrls ? "store" : "store.json") : null;
   const doubledApps = [...carouselApps, ...carouselApps];
 
   return (
@@ -699,7 +705,7 @@ export function StartPage({
               {/* Signer buttons */}
               <div className="space-y-2.5 mb-8">
                 {signers.map((signer, i) => {
-                  const url = baseUrl + signer.file;
+                  const url = baseUrl + (usesShortUrls ? signer.path : signer.file);
                   return (
                     <a
                       key={signer.name}
@@ -735,7 +741,7 @@ export function StartPage({
                 </p>
                 <div className="grid grid-cols-2 gap-2.5">
                   {otherFormats.map((fmt) => {
-                    const url = baseUrl + fmt.file;
+                    const url = baseUrl + (usesShortUrls ? fmt.path : fmt.file);
                     return (
                       <button
                         key={fmt.name}
