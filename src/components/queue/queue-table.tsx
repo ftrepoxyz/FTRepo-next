@@ -11,6 +11,13 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { usePolling } from "@/hooks/use-polling";
 import { formatDistanceToNow } from "date-fns";
 import {
@@ -161,6 +168,8 @@ function Checkbox({ checked, onChange, className }: {
 export function QueueTable() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [channelFilter, setChannelFilter] = useState("");
   const [page, setPage] = useState(1);
   const [sortBy, setSortBy] = useState<SortField>("createdAt");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
@@ -182,15 +191,18 @@ export function QueueTable() {
       sortBy,
       sortOrder,
       ...(search && { search }),
+      ...(statusFilter && { status: statusFilter }),
+      ...(channelFilter && { channelId: channelFilter }),
     });
     const res = await fetch(`/api/queue?${params}`);
     return res.json();
-  }, [page, search, sortBy, sortOrder]);
+  }, [page, search, statusFilter, channelFilter, sortBy, sortOrder]);
 
   const { data, refresh } = usePolling(fetcher, 10000);
   const items: QueueEntry[] = data?.data || [];
   const stats = data?.stats || {};
   const totalPages: number = data?.totalPages || 1;
+  const channels: string[] = data?.channels || [];
 
   const handleRetry = async (id: number) => {
     await fetch("/api/queue/retry", {
@@ -227,8 +239,8 @@ export function QueueTable() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[180px]">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Search by filename..."
@@ -240,6 +252,45 @@ export function QueueTable() {
             className="pl-9"
           />
         </div>
+        <Select
+          value={channelFilter}
+          onValueChange={(v) => {
+            setChannelFilter(v === "all" ? "" : v);
+            setPage(1);
+          }}
+        >
+          <SelectTrigger size="sm" className="w-[160px]">
+            <SelectValue placeholder="All channels" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All channels</SelectItem>
+            {channels.map((ch) => (
+              <SelectItem key={ch} value={ch}>
+                {ch}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select
+          value={statusFilter}
+          onValueChange={(v) => {
+            setStatusFilter(v === "all" ? "" : v);
+            setPage(1);
+          }}
+        >
+          <SelectTrigger size="sm" className="w-[140px]">
+            <SelectValue placeholder="All statuses" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All statuses</SelectItem>
+            <SelectItem value="pending">Pending</SelectItem>
+            <SelectItem value="downloading">Downloading</SelectItem>
+            <SelectItem value="processing">Processing</SelectItem>
+            <SelectItem value="completed">Completed</SelectItem>
+            <SelectItem value="failed">Failed</SelectItem>
+            <SelectItem value="skipped">Skipped</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2">

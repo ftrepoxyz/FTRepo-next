@@ -7,6 +7,7 @@ export const GET = withAuth(async (request) => {
   try {
     const url = new URL(request.url);
     const status = url.searchParams.get("status");
+    const channelId = url.searchParams.get("channelId");
     const search = url.searchParams.get("search") || "";
     const sortBy = url.searchParams.get("sortBy") || "createdAt";
     const sortOrder = url.searchParams.get("sortOrder") === "asc" ? "asc" : "desc";
@@ -16,12 +17,13 @@ export const GET = withAuth(async (request) => {
     const where = {
       hasIpa: true,
       ...(status && { status }),
+      ...(channelId && { channelId }),
       ...(search && {
         fileName: { contains: search, mode: "insensitive" as const },
       }),
     };
 
-    const [total, items, stats] = await Promise.all([
+    const [total, items, stats, channels] = await Promise.all([
       prisma.processedMessage.count({ where }),
       prisma.processedMessage.findMany({
         where,
@@ -30,6 +32,12 @@ export const GET = withAuth(async (request) => {
         take: pageSize,
       }),
       getQueueStats(),
+      prisma.processedMessage.findMany({
+        where: { hasIpa: true },
+        distinct: ["channelId"],
+        select: { channelId: true },
+        orderBy: { channelId: "asc" },
+      }),
     ]);
 
     return NextResponse.json({
@@ -46,6 +54,7 @@ export const GET = withAuth(async (request) => {
         updatedAt: item.updatedAt.toISOString(),
       })),
       stats,
+      channels: channels.map((c) => c.channelId),
       total,
       page,
       pageSize,
