@@ -155,11 +155,33 @@ export function SettingsPanel() {
   const [authCode, setAuthCode] = useState("");
   const [authPassword, setAuthPassword] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
+  const [githubBranches, setGithubBranches] = useState<string[]>([]);
+  const [branchesLoading, setBranchesLoading] = useState(false);
+
+  const fetchBranches = useCallback(async () => {
+    setBranchesLoading(true);
+    try {
+      const res = await fetch("/api/github/branches");
+      const data = await res.json();
+      if (data.success) {
+        setGithubBranches(data.data);
+      } else {
+        setGithubBranches([]);
+      }
+    } catch {
+      setGithubBranches([]);
+    } finally {
+      setBranchesLoading(false);
+    }
+  }, []);
 
   const changeTab = useCallback((tab: string) => {
     setActiveTab(tab);
     window.history.replaceState(null, "", `#${tab}`);
-  }, []);
+    if (tab === "integrations") {
+      fetchBranches();
+    }
+  }, [fetchBranches]);
 
   const isDirty = useMemo(() => {
     const keys = new Set([...Object.keys(settings), ...Object.keys(savedSettings)]);
@@ -219,6 +241,7 @@ export function SettingsPanel() {
       if (settingsData.success) {
         setSettings(settingsData.data);
         setSavedSettings(settingsData.data);
+        fetchBranches();
       }
       if (channelsData.success) setChannels(channelsData.data);
       if (meData.success) setCurrentUser(meData.user);
@@ -228,7 +251,7 @@ export function SettingsPanel() {
       setLoading(false);
     }
     loadTelegramAuth();
-  }, [loadTelegramAuth]);
+  }, [loadTelegramAuth, fetchBranches]);
 
   useEffect(() => {
     loadData();
@@ -260,6 +283,7 @@ export function SettingsPanel() {
       });
       setSavedSettings({ ...settings });
       toast.success("Settings saved");
+      fetchBranches();
     } catch {
       toast.error("Failed to save settings");
     } finally {
@@ -778,17 +802,6 @@ export function SettingsPanel() {
           <CardContent className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label>Token</Label>
-                <Input
-                  type="password"
-                  value={String(settings.github_token || "")}
-                  onChange={(e) =>
-                    updateSetting("github_token", e.target.value)
-                  }
-                  placeholder="Enter GitHub token"
-                />
-              </div>
-              <div className="space-y-2">
                 <Label>Owner</Label>
                 <Input
                   value={String(settings.github_owner || "")}
@@ -809,14 +822,53 @@ export function SettingsPanel() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Branch</Label>
+                <Label>Token</Label>
                 <Input
-                  value={String(settings.github_branch || "main")}
+                  type="password"
+                  value={String(settings.github_token || "")}
                   onChange={(e) =>
-                    updateSetting("github_branch", e.target.value)
+                    updateSetting("github_token", e.target.value)
                   }
-                  placeholder="main"
+                  placeholder="Enter GitHub token"
                 />
+              </div>
+              <div className="space-y-2">
+                <Label>Branch</Label>
+                {githubBranches.length > 0 ? (
+                  <Select
+                    value={String(settings.github_branch || "main")}
+                    onValueChange={(v) => updateSetting("github_branch", v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select branch" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {githubBranches.map((b) => (
+                        <SelectItem key={b} value={b}>
+                          {b}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    value={String(settings.github_branch || "main")}
+                    onChange={(e) =>
+                      updateSetting("github_branch", e.target.value)
+                    }
+                    placeholder="main"
+                    disabled={branchesLoading}
+                  />
+                )}
+                {!savedSettings.github_owner || !savedSettings.github_repo ? (
+                  <p className="text-xs text-muted-foreground">
+                    Save owner and repository to load branches
+                  </p>
+                ) : branchesLoading ? (
+                  <p className="text-xs text-muted-foreground">
+                    Loading branches...
+                  </p>
+                ) : null}
               </div>
             </div>
           </CardContent>
