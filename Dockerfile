@@ -37,7 +37,6 @@ COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
-RUN mkdir -p node_modules/.bin && ln -s ../prisma/build/index.js node_modules/.bin/prisma
 COPY --from=builder /app/.github ./.github
 COPY --from=builder /app/scripts ./scripts
 COPY --from=builder /app/node_modules/tsx ./node_modules/tsx
@@ -48,4 +47,4 @@ USER nextjs
 
 EXPOSE 3000
 
-CMD ["sh", "-c", "node_modules/.bin/prisma db push --skip-generate && node server.js"]
+CMD ["sh", "-c", "node node_modules/prisma/build/index.js db push --skip-generate && node server.js"]
