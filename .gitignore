@@ -47,4 +47,3 @@ next-env.d.ts
 # temp
 /tmp/
 /temp/
-package-lock.json
