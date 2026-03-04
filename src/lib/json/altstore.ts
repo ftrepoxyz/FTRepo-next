@@ -1,5 +1,5 @@
 import { DownloadedIpa } from "@prisma/client";
-import { AltStoreApp, AltStoreVersion, FileConfig } from "@/types/config";
+import { AltStoreApp, AltStoreVersion, FileConfig, TweakConfig } from "@/types/config";
 import { groupByCompositeKey } from "./grouping";
 
 interface AltStoreRepo {
@@ -16,7 +16,7 @@ export function generateAltStoreJson(
   ipas: DownloadedIpa[],
   config: FileConfig,
   maxVersions: number,
-  knownTweaks: string[]
+  knownTweaks: TweakConfig[]
 ): string {
   const grouped = groupByCompositeKey(ipas, knownTweaks);
   const apps: AltStoreApp[] = [];

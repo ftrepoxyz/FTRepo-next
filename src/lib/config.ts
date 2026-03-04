@@ -3,7 +3,7 @@ import { resolve } from "path";
 import { parse as parseYaml } from "yaml";
 import { z } from "zod/v4";
 import { prisma } from "./db";
-import type { FileConfig, AppSettings } from "@/types/config";
+import type { FileConfig, AppSettings, TweakConfig } from "@/types/config";
 
 // --- File-based config (source, categories, news) — stays sync ---
 
@@ -76,13 +76,7 @@ export function getFileConfig(): FileConfig {
 
 // --- DB-backed settings with TTL cache ---
 
-export const DEFAULT_KNOWN_TWEAKS = [
-  "BHInsta", "BHTikTok", "BHX", "TikTokLRD", "VibeTok", "Theta",
-  "TWIGalaxy", "NeoFreeBird", "Rocket", "Watusi", "OLED", "RXTikTok",
-  "IGFormat", "DLEasy", "TGExtra", "Spotilife", "YouTopia", "EveeSpotify",
-  "Glow", "InstaLRD", "LRD", "Preview", "Flow", "YTPlus", "GLETikTok",
-  "Moe Multi",
-];
+export const DEFAULT_KNOWN_TWEAKS: TweakConfig[] = [];
 
 const SETTINGS_DEFAULTS: Record<string, string> = {
   telegram_api_id: "",
@@ -148,10 +142,16 @@ export async function getSettings(): Promise<AppSettings> {
     return Number(raw[key]) || Number(SETTINGS_DEFAULTS[key]);
   }
 
-  function jsonArray(key: string, fallback: string[]): string[] {
+  function jsonTweaks(key: string, fallback: TweakConfig[]): TweakConfig[] {
     try {
       const parsed = JSON.parse(raw[key]);
-      return Array.isArray(parsed) ? parsed : fallback;
+      if (!Array.isArray(parsed)) return fallback;
+      // Backwards compat: convert string[] to TweakConfig[]
+      return parsed.map((entry: string | TweakConfig) =>
+        typeof entry === "string"
+          ? { name: entry, lockedChannelId: null }
+          : entry
+      );
     } catch {
       return fallback;
     }
@@ -173,7 +173,7 @@ export async function getSettings(): Promise<AppSettings> {
     max_versions_per_app: num("max_versions_per_app"),
     log_retention_days: num("log_retention_days"),
     scan_message_limit: num("scan_message_limit"),
-    known_tweaks: jsonArray("known_tweaks", DEFAULT_KNOWN_TWEAKS),
+    known_tweaks: jsonTweaks("known_tweaks", DEFAULT_KNOWN_TWEAKS),
     source_name: raw.source_name,
     source_description: raw.source_description,
     site_domain: raw.site_domain,
@@ -196,6 +196,7 @@ export async function getTelegramChannels(): Promise<string[]> {
   const channels = await prisma.channelProgress.findMany({
     where: { isActive: true },
     select: { channelId: true },
+    orderBy: { priority: "asc" },
   });
   return channels.map((c) => c.channelId);
 }

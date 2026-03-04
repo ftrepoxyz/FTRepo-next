@@ -56,15 +56,17 @@ export async function scanChannel(
       }
     }
 
-    // Get channel message history starting from last known position
-    let fromMessageId = Number(progress.lastMessageId);
+    // Always start from the newest message (0) and walk backward.
+    // We stop when we hit an already-processed message (meaning we've
+    // caught up to the previous scan) or when we reach the message limit.
+    let fromMessageId = 0;
     let hasMore = true;
     let totalScanned = 0;
-    const batchSize = messageLimit > 0 ? Math.min(100, messageLimit) : 100;
+    let consecutiveKnown = 0;
+    const KNOWN_THRESHOLD = 20; // stop after 20 consecutive already-seen messages
 
     while (hasMore) {
-      const fetchLimit = messageLimit > 0 ? Math.min(batchSize, messageLimit - totalScanned) : 100;
-      if (messageLimit > 0 && fetchLimit <= 0) break;
+      const fetchLimit = 100;
 
       const history = (await client.invoke({
         _: "getChatHistory",
@@ -81,10 +83,8 @@ export async function scanChannel(
         break;
       }
 
-      totalScanned += messages.length;
-
       for (const msg of messages) {
-        // Skip already processed
+        // Check if already processed
         const existing = await prisma.processedMessage.findUnique({
           where: {
             channelId_messageId: {
@@ -94,9 +94,19 @@ export async function scanChannel(
           },
         });
 
-        if (existing) continue;
+        if (existing) {
+          consecutiveKnown++;
+          // If we've hit enough consecutive known messages, we've caught up
+          if (consecutiveKnown >= KNOWN_THRESHOLD) {
+            hasMore = false;
+            break;
+          }
+          continue;
+        }
 
-        // Skip messages from disabled forum topics
+        consecutiveKnown = 0;
+
+        // Skip messages from disabled forum topics (don't count toward scan limit)
         if (
           disabledTopicIds.size > 0 &&
           msg.message_thread_id &&
@@ -110,10 +120,10 @@ export async function scanChannel(
               status: "skipped",
             },
           });
-          newMessages++;
           continue;
         }
 
+        totalScanned++;
         newMessages++;
 
         // Check if message has a document attachment that's an IPA
@@ -146,12 +156,14 @@ export async function scanChannel(
         }
       }
 
-      // Update progress
+      // Update pagination cursor
       const lastMsg = messages[messages.length - 1];
       if (lastMsg) {
         fromMessageId = lastMsg.id;
       }
-      hasMore = messages.length === fetchLimit; // More pages if we got a full batch
+      // Stop if Telegram returned a partial batch (end of history)
+      if (messages.length < fetchLimit) hasMore = false;
+      // Stop if we've hit the message limit
       if (messageLimit > 0 && totalScanned >= messageLimit) hasMore = false;
     }
 

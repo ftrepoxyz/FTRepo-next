@@ -78,6 +78,12 @@ export interface ScarletApp {
 
 export interface FeatherApp extends AltStoreApp {}
 
+export interface TweakConfig {
+  name: string;
+  aliases?: string[];
+  lockedChannelId?: string | null;
+}
+
 export interface FileConfig {
   source: SourceConfig;
   categories: CategoryConfig[];
@@ -100,7 +106,7 @@ export interface AppSettings {
   temp_dir: string;
   log_retention_days: number;
   scan_message_limit: number;
-  known_tweaks: string[];
+  known_tweaks: TweakConfig[];
   source_name: string;
   source_description: string;
   site_domain: string;

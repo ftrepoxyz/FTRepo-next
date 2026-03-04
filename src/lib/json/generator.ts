@@ -28,6 +28,14 @@ export async function generateAllJson(
   const maxVersions = settings.max_versions_per_app;
   const knownTweaks = settings.known_tweaks;
 
+  // Build channel priority map for tiebreaking
+  const channelRows = await prisma.channelProgress.findMany({
+    select: { channelId: true, priority: true },
+  });
+  const channelPriorities = new Map(
+    channelRows.map((c) => [c.channelId, c.priority])
+  );
+
   // Get all non-corrupted IPAs with download URLs
   const ipas = await prisma.downloadedIpa.findMany({
     where: {
@@ -43,8 +51,8 @@ export async function generateAllJson(
   await logger.info("generate", `Generating JSON for ${ipas.length} IPAs`);
 
   const altstore = generateAltStoreJson(ipas, fileConfig, maxVersions, knownTweaks);
-  const esign = generateESignJson(ipas, fileConfig, knownTweaks);
-  const scarlet = generateScarletJson(ipas, fileConfig, knownTweaks);
+  const esign = generateESignJson(ipas, fileConfig, knownTweaks, channelPriorities);
+  const scarlet = generateScarletJson(ipas, fileConfig, knownTweaks, channelPriorities);
   const feather = generateFeatherJson(ipas, fileConfig, maxVersions, knownTweaks);
 
   // Count unique apps using composite keys

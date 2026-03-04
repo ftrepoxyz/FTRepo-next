@@ -13,6 +13,7 @@ function serializeChannel(c: ChannelProgress) {
     isActive: c.isActive,
     isForum: c.isForum,
     forumTopics: c.forumTopics ?? [],
+    priority: c.priority,
     lastMessageId: Number(c.lastMessageId),
     totalMessages: c.totalMessages,
     ipaCount: c.ipaCount,
@@ -24,7 +25,7 @@ function serializeChannel(c: ChannelProgress) {
 export const GET = withAuth(async () => {
   try {
     const channels = await prisma.channelProgress.findMany({
-      orderBy: { channelId: "asc" },
+      orderBy: { priority: "asc" },
     });
 
     return NextResponse.json({
@@ -51,10 +52,16 @@ export const POST = withAuth(async (request) => {
       );
     }
 
+    const maxPriority = await prisma.channelProgress.aggregate({
+      _max: { priority: true },
+    });
+    const nextPriority = (maxPriority._max.priority ?? -1) + 1;
+
     let channel = await prisma.channelProgress.create({
       data: {
         channelId,
         channelName: channelName || channelId,
+        priority: nextPriority,
       },
     });
 
@@ -76,7 +83,7 @@ export const POST = withAuth(async (request) => {
 export const PUT = withAuth(async (request) => {
   try {
     const body = await request.json();
-    const { channelId, isActive, channelName, forumTopics } = body;
+    const { channelId, isActive, channelName, forumTopics, priority } = body;
 
     if (!channelId) {
       return NextResponse.json(
@@ -91,6 +98,7 @@ export const PUT = withAuth(async (request) => {
         ...(isActive !== undefined && { isActive }),
         ...(channelName && { channelName }),
         ...(forumTopics !== undefined && { forumTopics }),
+        ...(priority !== undefined && { priority }),
       },
     });
 

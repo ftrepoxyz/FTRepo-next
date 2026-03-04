@@ -44,7 +44,35 @@ import {
   ChevronDown,
   ChevronRight,
   RefreshCw,
+  GripVertical,
+  Link,
+  Tag,
 } from "lucide-react";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { UsersTab } from "@/components/settings/users-tab";
 
 function UnsavedBanner({
@@ -148,9 +176,62 @@ interface Channel {
   isActive: boolean;
   isForum: boolean;
   forumTopics: ForumTopic[];
+  priority: number;
 }
 
-type SettingsMap = Record<string, string | number | boolean | string[]>;
+interface TweakConfig {
+  name: string;
+  aliases?: string[];
+  lockedChannelId?: string | null;
+}
+
+type SettingsMap = Record<string, string | number | boolean | string[] | TweakConfig[]>;
+
+function SortableChannelItem({
+  ch,
+  index,
+  children,
+  forumSection,
+}: {
+  ch: Channel;
+  index: number;
+  children: React.ReactNode;
+  forumSection?: React.ReactNode;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: ch.channelId });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : undefined,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className="rounded-lg border">
+      <div className="flex items-center gap-2 px-4 py-3">
+        <button
+          className="cursor-grab touch-none text-muted-foreground hover:text-foreground"
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical className="h-4 w-4" />
+        </button>
+        <span className="flex h-5 w-5 items-center justify-center rounded bg-muted text-[10px] font-bold text-muted-foreground shrink-0">
+          {index + 1}
+        </span>
+        {children}
+      </div>
+      {forumSection}
+    </div>
+  );
+}
 
 const VALID_TABS = ["general", "integrations", "channels", "users", "actions"];
 
@@ -212,7 +293,7 @@ export function SettingsPanel() {
       const a = settings[key];
       const b = savedSettings[key];
       if (Array.isArray(a) && Array.isArray(b)) {
-        if (a.length !== b.length || a.some((v, i) => v !== b[i])) return true;
+        if (JSON.stringify(a) !== JSON.stringify(b)) return true;
       } else if (a !== b) {
         return true;
       }
@@ -352,12 +433,50 @@ export function SettingsPanel() {
     }
   };
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = channels.findIndex((c) => c.channelId === active.id);
+    const newIndex = channels.findIndex((c) => c.channelId === over.id);
+    const reordered = arrayMove(channels, oldIndex, newIndex);
+    setChannels(reordered);
+    setSavedChannels(reordered);
+
+    try {
+      await fetch("/api/channels/reorder", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ channelIds: reordered.map((c) => c.channelId) }),
+      });
+    } catch {
+      toast.error("Failed to save channel order");
+      loadData();
+    }
+  };
+
+  // Normalize known_tweaks: old format (string[]) → TweakConfig[]
+  const knownTweaks: TweakConfig[] = useMemo(() => {
+    const raw = settings.known_tweaks;
+    if (!Array.isArray(raw)) return [];
+    return raw.map((entry: unknown) =>
+      typeof entry === "string"
+        ? { name: entry, lockedChannelId: null }
+        : (entry as TweakConfig)
+    );
+  }, [settings.known_tweaks]);
+
   const [newTweak, setNewTweak] = useState("");
   const [nukeOpen, setNukeOpen] = useState(false);
   const [nukeLoading, setNukeLoading] = useState(false);
   const [nukeConfirm, setNukeConfirm] = useState("");
 
-  const updateSetting = (key: string, value: string | number | boolean | string[]) => {
+  const updateSetting = (key: string, value: string | number | boolean | string[] | TweakConfig[]) => {
     setSettings((prev) => ({ ...prev, [key]: value }));
   };
 
@@ -369,7 +488,7 @@ export function SettingsPanel() {
         const a = settings[key];
         const b = savedSettings[key];
         if (Array.isArray(a) && Array.isArray(b)) {
-          if (a.length !== b.length || a.some((v, i) => v !== b[i])) changed[key] = a;
+          if (JSON.stringify(a) !== JSON.stringify(b)) changed[key] = a;
         } else if (a !== b) {
           changed[key] = a;
         }
@@ -699,7 +818,7 @@ export function SettingsPanel() {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Tweak names used to distinguish apps with the same bundle ID. When multiple tweaks target the same app, they appear as separate entries in your repo JSON.
+              Tweak names used to distinguish apps with the same bundle ID. Add aliases so alternative names resolve to the same tweak, and lock a tweak to a specific channel.
             </p>
             <div className="flex gap-2">
               <Input
@@ -708,9 +827,8 @@ export function SettingsPanel() {
                 onChange={(e) => setNewTweak(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && newTweak.trim()) {
-                    const current = (settings.known_tweaks as unknown as string[]) || [];
-                    if (!current.includes(newTweak.trim())) {
-                      updateSetting("known_tweaks", [...current, newTweak.trim()]);
+                    if (!knownTweaks.some((t) => t.name === newTweak.trim())) {
+                      updateSetting("known_tweaks", [...knownTweaks, { name: newTweak.trim(), lockedChannelId: null }]);
                     }
                     setNewTweak("");
                   }
@@ -719,9 +837,8 @@ export function SettingsPanel() {
               <Button
                 onClick={() => {
                   if (!newTweak.trim()) return;
-                  const current = (settings.known_tweaks as unknown as string[]) || [];
-                  if (!current.includes(newTweak.trim())) {
-                    updateSetting("known_tweaks", [...current, newTweak.trim()]);
+                  if (!knownTweaks.some((t) => t.name === newTweak.trim())) {
+                    updateSetting("known_tweaks", [...knownTweaks, { name: newTweak.trim(), lockedChannelId: null }]);
                   }
                   setNewTweak("");
                 }}
@@ -730,24 +847,152 @@ export function SettingsPanel() {
               </Button>
             </div>
             <div className="flex flex-wrap gap-2">
-              {((settings.known_tweaks as unknown as string[]) || []).map((tweak) => (
-                <div
-                  key={tweak}
-                  className="flex items-center gap-1 rounded-md border px-3 py-1 text-sm"
-                >
-                  <span>{tweak}</span>
-                  <button
-                    className="ml-1 text-muted-foreground hover:text-foreground"
-                    onClick={() => {
-                      const current = (settings.known_tweaks as unknown as string[]) || [];
-                      updateSetting("known_tweaks", current.filter((t) => t !== tweak));
-                    }}
+              {knownTweaks.map((tweak) => {
+                const lockedChannel = tweak.lockedChannelId
+                  ? channels.find((c) => c.channelId === tweak.lockedChannelId)
+                  : null;
+                const aliases = tweak.aliases || [];
+
+                return (
+                  <div
+                    key={tweak.name}
+                    className="flex items-center gap-1 rounded-md border px-3 py-1 text-sm"
                   >
-                    <X className="h-3 w-3" />
-                  </button>
-                </div>
-              ))}
-              {((settings.known_tweaks as unknown as string[]) || []).length === 0 && (
+                    <span>{tweak.name}</span>
+                    {aliases.length > 0 && (
+                      <span className="text-[10px] text-muted-foreground">
+                        ({aliases.join(", ")})
+                      </span>
+                    )}
+                    {/* Aliases dropdown */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          className={`ml-0.5 flex items-center gap-0.5 rounded px-1 py-0.5 text-[10px] transition-colors ${
+                            aliases.length > 0
+                              ? "bg-purple-500/10 text-purple-600 dark:text-purple-400 hover:bg-purple-500/20"
+                              : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                          }`}
+                          title={aliases.length > 0 ? `Aliases: ${aliases.join(", ")}` : "Add aliases"}
+                        >
+                          <Tag className="h-3 w-3" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" className="w-48" onCloseAutoFocus={(e) => e.preventDefault()}>
+                        <DropdownMenuLabel>Aliases</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        {aliases.map((alias) => (
+                          <DropdownMenuItem
+                            key={alias}
+                            onClick={() => {
+                              updateSetting(
+                                "known_tweaks",
+                                knownTweaks.map((t) =>
+                                  t.name === tweak.name
+                                    ? { ...t, aliases: aliases.filter((a) => a !== alias) }
+                                    : t
+                                )
+                              );
+                            }}
+                          >
+                            <span className="flex-1">{alias}</span>
+                            <X className="h-3 w-3 text-muted-foreground" />
+                          </DropdownMenuItem>
+                        ))}
+                        {aliases.length === 0 && (
+                          <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                            No aliases
+                          </div>
+                        )}
+                        <DropdownMenuSeparator />
+                        <div className="px-2 py-1.5" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                          <Input
+                            placeholder="Add alias..."
+                            className="h-7 text-xs"
+                            onKeyDown={(e) => {
+                              e.stopPropagation();
+                              if (e.key === "Enter") {
+                                const val = e.currentTarget.value.trim();
+                                if (val && !aliases.includes(val)) {
+                                  updateSetting(
+                                    "known_tweaks",
+                                    knownTweaks.map((t) =>
+                                      t.name === tweak.name
+                                        ? { ...t, aliases: [...aliases, val] }
+                                        : t
+                                    )
+                                  );
+                                  e.currentTarget.value = "";
+                                }
+                              }
+                            }}
+                          />
+                        </div>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                    {/* Channel lock dropdown */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          className={`ml-0.5 flex items-center gap-0.5 rounded px-1 py-0.5 text-[10px] transition-colors ${
+                            lockedChannel
+                              ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20"
+                              : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                          }`}
+                          title={lockedChannel ? `Locked to ${lockedChannel.channelName || lockedChannel.channelId}` : "Lock to channel"}
+                        >
+                          <Link className="h-3 w-3" />
+                          {lockedChannel && (
+                            <span className="max-w-[80px] truncate">
+                              {lockedChannel.channelName || lockedChannel.channelId}
+                            </span>
+                          )}
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start">
+                        <DropdownMenuItem
+                          onClick={() => {
+                            updateSetting(
+                              "known_tweaks",
+                              knownTweaks.map((t) =>
+                                t.name === tweak.name ? { ...t, lockedChannelId: null } : t
+                              )
+                            );
+                          }}
+                        >
+                          All channels
+                        </DropdownMenuItem>
+                        {channels.map((ch) => (
+                          <DropdownMenuItem
+                            key={ch.channelId}
+                            onClick={() => {
+                              updateSetting(
+                                "known_tweaks",
+                                knownTweaks.map((t) =>
+                                  t.name === tweak.name
+                                    ? { ...t, lockedChannelId: ch.channelId }
+                                    : t
+                                )
+                              );
+                            }}
+                          >
+                            {ch.channelName || ch.channelId}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                    <button
+                      className="ml-1 text-muted-foreground hover:text-foreground"
+                      onClick={() => {
+                        updateSetting("known_tweaks", knownTweaks.filter((t) => t.name !== tweak.name));
+                      }}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                );
+              })}
+              {knownTweaks.length === 0 && (
                 <p className="text-sm text-muted-foreground">
                   No tweaks configured
                 </p>
@@ -1008,6 +1253,9 @@ export function SettingsPanel() {
             <CardTitle>Telegram Channels</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Drag channels to set scan priority. Higher channels are scanned first and preferred when two IPAs share the same version.
+            </p>
             <div className="flex gap-2">
               <Input
                 placeholder="Channel username (e.g., @channel)"
@@ -1019,115 +1267,124 @@ export function SettingsPanel() {
                 <Plus className="mr-1 h-4 w-4" /> Add
               </Button>
             </div>
-            <div className="space-y-2">
-              {channels.map((ch) => {
-                const enabledCount = ch.forumTopics?.filter((t) => t.enabled).length ?? 0;
-                const totalTopics = ch.forumTopics?.length ?? 0;
-                const isExpanded = expandedForums.has(ch.channelId);
-                const isRefreshing = refreshingTopics.has(ch.channelId);
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext
+                items={channels.map((c) => c.channelId)}
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="space-y-2">
+                  {channels.map((ch, index) => {
+                    const enabledCount = ch.forumTopics?.filter((t) => t.enabled).length ?? 0;
+                    const totalTopics = ch.forumTopics?.length ?? 0;
+                    const isExpanded = expandedForums.has(ch.channelId);
+                    const isRefreshing = refreshingTopics.has(ch.channelId);
 
-                return (
-                <div
-                  key={ch.channelId}
-                  className="rounded-lg border"
-                >
-                  <div className="flex items-center gap-4 px-4 py-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium leading-none">
-                          {ch.channelName || ch.channelId}
-                        </p>
-                        <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] font-mono text-muted-foreground">
-                          {ch.channelId}
-                        </span>
-                      </div>
-                      {ch.channelDescription && (
-                        <p className="mt-1 text-xs text-muted-foreground line-clamp-1">
-                          {ch.channelDescription}
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <Switch
-                        checked={ch.isActive}
-                        onCheckedChange={async (active) => {
-                          await fetch("/api/channels", {
-                            method: "PUT",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({
-                              channelId: ch.channelId,
-                              isActive: active,
-                            }),
-                          });
-                          loadData();
-                        }}
-                      />
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => removeChannel(ch.channelId)}
+                    return (
+                      <SortableChannelItem
+                        key={ch.channelId}
+                        ch={ch}
+                        index={index}
+                        forumSection={ch.isForum && totalTopics > 0 ? (
+                          <div className="border-t px-4 py-2">
+                            <div className="flex items-center justify-between">
+                              <button
+                                className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                                onClick={() => toggleForumExpanded(ch.channelId)}
+                              >
+                                {isExpanded ? (
+                                  <ChevronDown className="h-3.5 w-3.5" />
+                                ) : (
+                                  <ChevronRight className="h-3.5 w-3.5" />
+                                )}
+                                Forum &middot; {totalTopics} topics ({enabledCount} enabled)
+                              </button>
+                              <button
+                                className="text-muted-foreground hover:text-foreground transition-colors p-1"
+                                onClick={() => refreshTopics(ch.channelId)}
+                                disabled={isRefreshing}
+                                title="Refresh topics from Telegram"
+                              >
+                                <RefreshCw
+                                  className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin" : ""}`}
+                                />
+                              </button>
+                            </div>
+                            {isExpanded && (
+                              <div className="mt-2 space-y-1 pb-1">
+                                {ch.forumTopics.map((topic) => (
+                                  <label
+                                    key={topic.id}
+                                    className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted/50 cursor-pointer"
+                                  >
+                                    <Checkbox
+                                      checked={topic.enabled}
+                                      onCheckedChange={(checked) =>
+                                        toggleTopicEnabled(ch, topic.id, checked === true)
+                                      }
+                                    />
+                                    <span className={topic.enabled ? "" : "text-muted-foreground line-through"}>
+                                      {topic.name}
+                                    </span>
+                                  </label>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ) : undefined}
                       >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-
-                  {ch.isForum && totalTopics > 0 && (
-                    <div className="border-t px-4 py-2">
-                      <div className="flex items-center justify-between">
-                        <button
-                          className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
-                          onClick={() => toggleForumExpanded(ch.channelId)}
-                        >
-                          {isExpanded ? (
-                            <ChevronDown className="h-3.5 w-3.5" />
-                          ) : (
-                            <ChevronRight className="h-3.5 w-3.5" />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-medium leading-none">
+                              {ch.channelName || ch.channelId}
+                            </p>
+                            <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] font-mono text-muted-foreground">
+                              {ch.channelId}
+                            </span>
+                          </div>
+                          {ch.channelDescription && (
+                            <p className="mt-1 text-xs text-muted-foreground line-clamp-1">
+                              {ch.channelDescription}
+                            </p>
                           )}
-                          Forum &middot; {totalTopics} topics ({enabledCount} enabled)
-                        </button>
-                        <button
-                          className="text-muted-foreground hover:text-foreground transition-colors p-1"
-                          onClick={() => refreshTopics(ch.channelId)}
-                          disabled={isRefreshing}
-                          title="Refresh topics from Telegram"
-                        >
-                          <RefreshCw
-                            className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin" : ""}`}
-                          />
-                        </button>
-                      </div>
-                      {isExpanded && (
-                        <div className="mt-2 space-y-1 pb-1">
-                          {ch.forumTopics.map((topic) => (
-                            <label
-                              key={topic.id}
-                              className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted/50 cursor-pointer"
-                            >
-                              <Checkbox
-                                checked={topic.enabled}
-                                onCheckedChange={(checked) =>
-                                  toggleTopicEnabled(ch, topic.id, checked === true)
-                                }
-                              />
-                              <span className={topic.enabled ? "" : "text-muted-foreground line-through"}>
-                                {topic.name}
-                              </span>
-                            </label>
-                          ))}
                         </div>
-                      )}
-                    </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Switch
+                            checked={ch.isActive}
+                            onCheckedChange={async (active) => {
+                              await fetch("/api/channels", {
+                                method: "PUT",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                  channelId: ch.channelId,
+                                  isActive: active,
+                                }),
+                              });
+                              loadData();
+                            }}
+                          />
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => removeChannel(ch.channelId)}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </SortableChannelItem>
+                    );
+                  })}
+                  {channels.length === 0 && (
+                    <p className="text-sm text-muted-foreground">
+                      No channels configured
+                    </p>
                   )}
                 </div>
-                );
-              })}
-              {channels.length === 0 && (
-                <p className="text-sm text-muted-foreground">
-                  No channels configured
-                </p>
-              )}
-            </div>
+              </SortableContext>
+            </DndContext>
           </CardContent>
         </Card>
       </TabsContent>

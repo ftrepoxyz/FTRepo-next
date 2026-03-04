@@ -30,7 +30,7 @@ export async function cleanupReleases(): Promise<CleanupResult> {
     const grouped = new Map<string, typeof allIpas>();
     for (const ipa of allIpas) {
       const tweaks = (ipa.tweaks as string[]) || [];
-      const { groupKey } = matchTweak(ipa.bundleId, ipa.appName, tweaks, ipa.isTweaked, knownTweaks);
+      const { groupKey } = matchTweak(ipa.bundleId, ipa.appName, tweaks, ipa.isTweaked, knownTweaks, ipa.channelId);
       const list = grouped.get(groupKey) || [];
       list.push(ipa);
       grouped.set(groupKey, list);

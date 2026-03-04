@@ -35,13 +35,7 @@ async function main() {
     { key: "temp_dir", value: "/tmp/ftrepo", type: "string" },
     {
       key: "known_tweaks",
-      value: JSON.stringify([
-        "BHInsta", "BHTikTok", "BHX", "TikTokLRD", "VibeTok", "Theta",
-        "TWIGalaxy", "NeoFreeBird", "Rocket", "Watusi", "OLED", "RXTikTok",
-        "IGFormat", "DLEasy", "TGExtra", "Spotilife", "YouTopia", "EveeSpotify",
-        "Glow", "InstaLRD", "LRD", "Preview", "Flow", "YTPlus", "GLETikTok",
-        "Moe Multi",
-      ]),
+      value: JSON.stringify([]),
       type: "json",
     },
   ];
