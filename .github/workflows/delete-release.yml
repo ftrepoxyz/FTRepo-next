@@ -28,11 +28,23 @@ jobs:
           fi
 
       - name: Delete GitHub Release
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release delete "${{ inputs.tag }}" --repo "${{ github.repository }}" --yes --cleanup-tag
-          echo "Deleted release and tag: ${{ inputs.tag }}"
+          gh release delete "${{ inputs.tag }}" --repo "${{ github.repository }}" --yes --cleanup-tag && \
+            echo "Deleted release and tag: ${{ inputs.tag }}" || \
+            echo "No release found for ${{ inputs.tag }}, skipping"
+
+      - name: Delete orphan tag
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git ls-remote --tags "https://github.com/${{ github.repository }}" "${{ inputs.tag }}" | grep -q . && \
+            gh api --method DELETE "repos/${{ github.repository }}/git/refs/tags/${{ inputs.tag }}" && \
+            echo "Deleted orphan tag: ${{ inputs.tag }}" || \
+            echo "No tag found for ${{ inputs.tag }}, skipping"
 
       - name: Delete Docker images
         continue-on-error: true
