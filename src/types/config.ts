@@ -3,20 +3,20 @@ export interface AltStoreApp {
   bundleIdentifier: string;
   developerName: string;
   localizedDescription: string;
-  iconURL: string;
+  iconURL: string | null;
   versions: AltStoreVersion[];
   appPermissions: Record<string, never>;
   version: string;
   versionDate: string;
   size: number;
-  downloadURL: string;
+  downloadURL: string | null;
 }
 
 export interface AltStoreVersion {
   version: string;
   date: string;
   size: number;
-  downloadURL: string;
+  downloadURL: string | null;
 }
 
 export interface ESignApp {

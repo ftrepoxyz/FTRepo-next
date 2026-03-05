@@ -29,7 +29,7 @@ export function generateAltStoreJson(
         version: ipa.version,
         date: ipa.createdAt.toISOString().split("T")[0],
         size: Number(ipa.fileSize),
-        downloadURL: ipa.downloadUrl || ipa.githubAssetUrl || "",
+        downloadURL: ipa.downloadUrl || ipa.githubAssetUrl || null,
       }));
 
     const latestVersion = versions[0];
@@ -38,7 +38,7 @@ export function generateAltStoreJson(
       name: latest.appName,
       bundleIdentifier: latest.bundleId,
       developerName: latest.developerName || "Unknown Developer",
-      iconURL: latest.iconUrl || "",
+      iconURL: latest.iconUrl || null,
       localizedDescription: latest.description || latest.appName,
       versions,
       appPermissions: {},
