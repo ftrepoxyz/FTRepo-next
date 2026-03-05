@@ -82,23 +82,31 @@ After saving your Telegram credentials, click **Connect** in Settings → Integr
 
 ### 5. Fix volume permissions (if needed)
 
-Both containers run as a non-root user (UID 1001). If you see permission errors like `EACCES: permission denied, mkdir '/app/tdlib-data/db'`, fix ownership on the volume data:
+Each container runs as a specific non-root user. If you see permission errors, fix ownership on the volume data:
 
 ```bash
 # For named Docker volumes
 sudo chown -R 1001:1001 $(docker volume inspect ftrepo_tdlib-data --format '{{ .Mountpoint }}')
 sudo chown -R 1001:1001 $(docker volume inspect ftrepo_temp-downloads --format '{{ .Mountpoint }}')
+sudo chown -R 70:70 $(docker volume inspect ftrepo_pgdata --format '{{ .Mountpoint }}')
 
 # For bind mounts (e.g. /opt/docker/ftrepo)
 sudo chown -R 1001:1001 /opt/docker/ftrepo/tdlib-data
 sudo chown -R 1001:1001 /opt/docker/ftrepo/temp-downloads
+sudo chown -R 70:70 /opt/docker/ftrepo/pgdata
 ```
 
-Or recreate the volumes from scratch:
+| Volume | Owner | Error you'll see |
+|--------|-------|------------------|
+| `tdlib-data` | 1001:1001 | `EACCES: permission denied, mkdir '/app/tdlib-data/db'` |
+| `temp-downloads` | 1001:1001 | `EACCES: permission denied` on `/tmp/ftrepo` |
+| `pgdata` | 70:70 | `FATAL: could not open file "global/pg_filenode.map": Permission denied` |
+
+Or recreate all volumes from scratch (⚠️ deletes database and session data):
 
 ```bash
 docker compose down
-docker volume rm ftrepo_tdlib-data ftrepo_temp-downloads
+docker volume rm ftrepo_tdlib-data ftrepo_temp-downloads ftrepo_pgdata
 docker compose up -d
 ```
 

@@ -62,23 +62,23 @@ Visit [http://localhost:3000](http://localhost:3000). You'll land on the Dashboa
 docker compose exec app npx prisma db seed
 ```
 
-### 5. Volume Permissions (Telegram / TDLib)
+### 5. Volume Permissions
 
-Both the `app` and `worker` containers run as a non-root user (UID 1001). If you encounter permission errors like:
+Each container runs as a specific non-root user. If you encounter permission errors, fix ownership on the Docker volume data:
 
-```
-Error: EACCES: permission denied, mkdir '/app/tdlib-data/db'
-```
+| Volume | Owner (UID:GID) | Error symptom |
+|--------|-----------------|---------------|
+| `tdlib-data` | 1001:1001 | `EACCES: permission denied, mkdir '/app/tdlib-data/db'` |
+| `temp-downloads` | 1001:1001 | `EACCES: permission denied` on `/tmp/ftrepo` |
+| `pgdata` | 70:70 | `FATAL: could not open file "global/pg_filenode.map": Permission denied` |
 
-You need to fix ownership on the Docker volume data. For named volumes:
+For named volumes:
 
 ```bash
-# Find the volume mount path
-docker volume inspect ftrepo_tdlib-data --format '{{ .Mountpoint }}'
-
-# Fix ownership (use the path from above)
+# Fix ownership
 sudo chown -R 1001:1001 /var/lib/docker/volumes/ftrepo_tdlib-data/_data
 sudo chown -R 1001:1001 /var/lib/docker/volumes/ftrepo_temp-downloads/_data
+sudo chown -R 70:70 /var/lib/docker/volumes/ftrepo_pgdata/_data
 ```
 
 If you're using bind mounts (e.g. at `/opt/docker/ftrepo`):
@@ -86,13 +86,14 @@ If you're using bind mounts (e.g. at `/opt/docker/ftrepo`):
 ```bash
 sudo chown -R 1001:1001 /opt/docker/ftrepo/tdlib-data
 sudo chown -R 1001:1001 /opt/docker/ftrepo/temp-downloads
+sudo chown -R 70:70 /opt/docker/ftrepo/pgdata
 ```
 
-Alternatively, you can remove the volumes and let them be recreated with correct permissions:
+Alternatively, you can remove the volumes and let them be recreated with correct permissions (⚠️ deletes database and session data):
 
 ```bash
 docker compose down
-docker volume rm ftrepo_tdlib-data ftrepo_temp-downloads
+docker volume rm ftrepo_tdlib-data ftrepo_temp-downloads ftrepo_pgdata
 docker compose up -d
 ```
 
