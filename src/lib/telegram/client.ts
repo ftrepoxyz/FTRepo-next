@@ -156,21 +156,20 @@ export async function startTelegramAuth(): Promise<void> {
     logger.error("system", "TDLib error", { error: errStr });
 
     if (errStr.includes("AUTH_KEY_DUPLICATED")) {
-      // Session is invalid — close client, wipe session data, prompt re-login
+      // Session conflict — close client but preserve session files on disk
+      // so they survive container restarts. User can manually reset if needed.
       try {
         await client.close();
       } catch {
         // ignore
       }
       mgr.client = null;
-      rmSync(dbDir, { recursive: true, force: true });
-      rmSync(filesDir, { recursive: true, force: true });
       setState(
         mgr,
         "error",
-        "Session invalidated (used elsewhere). Please reconnect to log in again."
+        "Session conflict (used by another instance). Please reconnect."
       );
-      logger.warn("system", "Cleared stale TDLib session due to AUTH_KEY_DUPLICATED");
+      logger.warn("system", "TDLib AUTH_KEY_DUPLICATED — client closed, session preserved on disk");
     }
   });
 
@@ -229,14 +228,12 @@ export async function startTelegramAuth(): Promise<void> {
       if (errStr.includes("AUTH_KEY_DUPLICATED")) {
         try { await client.close(); } catch { /* ignore */ }
         mgr.client = null;
-        rmSync(dbDir, { recursive: true, force: true });
-        rmSync(filesDir, { recursive: true, force: true });
         setState(
           mgr,
           "error",
-          "Session invalidated (used elsewhere). Please reconnect to log in again."
+          "Session conflict (used by another instance). Please reconnect."
         );
-        logger.warn("system", "Cleared stale TDLib session due to AUTH_KEY_DUPLICATED");
+        logger.warn("system", "TDLib AUTH_KEY_DUPLICATED — client closed, session preserved on disk");
       } else if (mgr.state !== "error") {
         setState(mgr, "error", errStr);
       }
@@ -252,16 +249,14 @@ export async function startTelegramAuth(): Promise<void> {
 
     await logger.warn(
       "system",
-      "TDLib login timed out — wiping stale session"
+      "TDLib login timed out — closing client, session preserved on disk"
     );
     try { await client.close(); } catch { /* ignore */ }
     mgr.client = null;
-    rmSync(dbDir, { recursive: true, force: true });
-    rmSync(filesDir, { recursive: true, force: true });
     setState(
       mgr,
       "error",
-      "Connection timed out. The saved session may be stale. Please reconnect."
+      "Connection timed out. Please reconnect."
     );
   }, LOGIN_TIMEOUT_MS);
 

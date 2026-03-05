@@ -17,6 +17,7 @@ services:
   app:
     image: ghcr.io/ftrepoxyz/ftrepo-app:latest
     restart: unless-stopped
+    stop_grace_period: 30s
     ports:
       - "3000:3000"
     environment:
@@ -30,6 +31,7 @@ services:
   worker:
     image: ghcr.io/ftrepoxyz/ftrepo-worker:latest
     restart: unless-stopped
+    stop_grace_period: 30s
     environment:
       DATABASE_URL: postgresql://ftrepo:ftrepo@db:5432/ftrepo?schema=public
     volumes:

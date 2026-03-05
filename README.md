@@ -78,7 +78,7 @@ Go to **Settings** and fill in:
 
 After saving your Telegram credentials, click **Connect** in Settings → Integrations and complete the login (verification code / 2FA password). This creates a TDLib session shared between the app and worker containers via the `tdlib-data` volume. The worker will then pick up the session and start scanning automatically.
 
-> **Note:** If the worker keeps restarting with "Telegram is not connected", make sure both the `app` and `worker` services mount the `tdlib-data` volume (see the Docker Compose below) and re-authenticate via the web UI.
+> **Note:** The Telegram session persists across redeployments via the `tdlib-data` volume. The `stop_grace_period: 30s` gives TDLib time to close cleanly, and the worker retries connecting with backoff after a restart. If the worker still can't connect, re-authenticate via the web UI. Use `docker compose down` (without `-v`) to preserve session data.
 
 ### 5. Fix volume permissions (if needed)
 
@@ -132,6 +132,7 @@ services:
   app:
     image: ghcr.io/ftrepoxyz/ftrepo-app:latest
     restart: unless-stopped
+    stop_grace_period: 30s
     ports:
       - "3000:3000"
     environment:
@@ -145,6 +146,7 @@ services:
   worker:
     image: ghcr.io/ftrepoxyz/ftrepo-worker:latest
     restart: unless-stopped
+    stop_grace_period: 30s
     environment:
       DATABASE_URL: postgresql://ftrepo:ftrepo@db:5432/ftrepo?schema=public
     volumes:

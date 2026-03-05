@@ -97,7 +97,18 @@ docker volume rm ftrepo_tdlib-data ftrepo_temp-downloads ftrepo_pgdata
 docker compose up -d
 ```
 
-### 6. Stopping
+### 6. Updating / Redeploying
+
+The Telegram session is preserved across redeployments. Both services use `stop_grace_period: 30s` so TDLib can close its database cleanly, and the worker retries connecting with backoff after a restart.
+
+```bash
+docker compose pull        # pull latest images
+docker compose up -d       # recreate containers (session preserved)
+```
+
+> **Important:** Do not use `docker compose down -v` unless you want to delete the Telegram session and database. Use plain `docker compose down` to keep volume data.
+
+### 7. Stopping
 
 ```bash
 docker compose down        # stop containers (keeps data)
