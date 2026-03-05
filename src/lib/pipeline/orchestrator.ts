@@ -41,7 +41,25 @@ export async function processNextIpa(
     });
 
     // Step 1: Download from Telegram
-    const chatId = chatIdMap.get(entry.channelId);
+    let chatId = chatIdMap.get(entry.channelId);
+    if (!chatId) {
+      // Channel not in map — try to resolve on-the-fly (e.g. channel added after worker started)
+      try {
+        const chat = (await client.invoke({
+          _: "searchPublicChat",
+          username: entry.channelId.replace("@", ""),
+        })) as { _: string; id: number } | null;
+        if (chat && chat._ === "chat") {
+          chatId = chat.id;
+          chatIdMap.set(entry.channelId, chatId);
+          await logger.info("process", `Resolved channel ${entry.channelId} on-the-fly`);
+        }
+      } catch (e) {
+        await logger.warn("process", `Could not resolve channel ${entry.channelId}`, {
+          error: String(e),
+        });
+      }
+    }
     if (!chatId) {
       await markFailed(entry.id, `Unknown channel: ${entry.channelId}`);
       return true;
@@ -173,12 +191,7 @@ export async function startProcessing(): Promise<void> {
       }
     }
 
-    if (chatIdMap.size === 0) {
-      await logger.warn("process", "No channels resolved, skipping processing");
-      return;
-    }
-
-    await logger.info("process", `Queue processor started, ${chatIdMap.size} channel(s) resolved`);
+    await logger.info("process", `Queue processor started, ${chatIdMap.size} channel(s) pre-resolved`);
 
     // Process until queue is empty
     while (await processNextIpa(client, chatIdMap)) {

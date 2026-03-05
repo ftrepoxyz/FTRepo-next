@@ -53,8 +53,22 @@ async function main() {
   scheduleTask(
     "scan",
     async () => {
-      for (const channel of channels) {
+      // Refresh channel list each scan cycle to pick up newly added channels
+      const currentChannels = await getTelegramChannels();
+      for (const channel of currentChannels) {
         await scanChannel(client, channel, settings.scan_message_limit);
+        // Ensure newly scanned channels are in the chatIdMap
+        if (!chatIdMap.has(channel)) {
+          try {
+            const chat = (await client.invoke({
+              _: "searchPublicChat",
+              username: channel.replace("@", ""),
+            })) as { id: number };
+            chatIdMap.set(channel, chat.id);
+          } catch {
+            // Will be resolved on-the-fly during processing
+          }
+        }
       }
     },
     settings.scan_interval_minutes
