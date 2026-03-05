@@ -62,7 +62,41 @@ Visit [http://localhost:3000](http://localhost:3000). You'll land on the Dashboa
 docker compose exec app npx prisma db seed
 ```
 
-### 5. Stopping
+### 5. Volume Permissions (Telegram / TDLib)
+
+Both the `app` and `worker` containers run as a non-root user (UID 1001). If you encounter permission errors like:
+
+```
+Error: EACCES: permission denied, mkdir '/app/tdlib-data/db'
+```
+
+You need to fix ownership on the Docker volume data. For named volumes:
+
+```bash
+# Find the volume mount path
+docker volume inspect ftrepo_tdlib-data --format '{{ .Mountpoint }}'
+
+# Fix ownership (use the path from above)
+sudo chown -R 1001:1001 /var/lib/docker/volumes/ftrepo_tdlib-data/_data
+sudo chown -R 1001:1001 /var/lib/docker/volumes/ftrepo_temp-downloads/_data
+```
+
+If you're using bind mounts (e.g. at `/opt/docker/ftrepo`):
+
+```bash
+sudo chown -R 1001:1001 /opt/docker/ftrepo/tdlib-data
+sudo chown -R 1001:1001 /opt/docker/ftrepo/temp-downloads
+```
+
+Alternatively, you can remove the volumes and let them be recreated with correct permissions:
+
+```bash
+docker compose down
+docker volume rm ftrepo_tdlib-data ftrepo_temp-downloads
+docker compose up -d
+```
+
+### 6. Stopping
 
 ```bash
 docker compose down        # stop containers (keeps data)

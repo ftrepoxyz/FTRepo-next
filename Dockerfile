@@ -41,7 +41,8 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/.github ./.github
 COPY --from=builder /app/scripts ./scripts
 
-RUN chown -R nextjs:nodejs /app
+RUN mkdir -p /app/tdlib-data/db /app/tdlib-data/files /tmp/ftrepo && \
+    chown -R nextjs:nodejs /app /tmp/ftrepo
 
 USER nextjs
 

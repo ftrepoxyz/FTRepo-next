@@ -80,6 +80,28 @@ After saving your Telegram credentials, click **Connect** in Settings → Integr
 
 > **Note:** If the worker keeps restarting with "Telegram is not connected", make sure both the `app` and `worker` services mount the `tdlib-data` volume (see the Docker Compose below) and re-authenticate via the web UI.
 
+### 5. Fix volume permissions (if needed)
+
+Both containers run as a non-root user (UID 1001). If you see permission errors like `EACCES: permission denied, mkdir '/app/tdlib-data/db'`, fix ownership on the volume data:
+
+```bash
+# For named Docker volumes
+sudo chown -R 1001:1001 $(docker volume inspect ftrepo_tdlib-data --format '{{ .Mountpoint }}')
+sudo chown -R 1001:1001 $(docker volume inspect ftrepo_temp-downloads --format '{{ .Mountpoint }}')
+
+# For bind mounts (e.g. /opt/docker/ftrepo)
+sudo chown -R 1001:1001 /opt/docker/ftrepo/tdlib-data
+sudo chown -R 1001:1001 /opt/docker/ftrepo/temp-downloads
+```
+
+Or recreate the volumes from scratch:
+
+```bash
+docker compose down
+docker volume rm ftrepo_tdlib-data ftrepo_temp-downloads
+docker compose up -d
+```
+
 ### Docker Compose
 
 ```yaml
