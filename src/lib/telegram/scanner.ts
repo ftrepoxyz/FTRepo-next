@@ -187,3 +187,162 @@ export async function scanChannel(
 
   return { newMessages, ipaMessages };
 }
+
+/**
+ * Scan a Telegram channel backwards, ignoring already-processed messages,
+ * until a target number of IPAs have been encountered (both new and already-seen).
+ * This allows rescanning deeper into history than the normal scan.
+ */
+export async function scanChannelPrevious(
+  client: TdlClient,
+  channelId: string,
+  ipaTarget: number
+): Promise<{ newMessages: number; ipaMessages: number }> {
+  let newMessages = 0;
+  let ipaMessages = 0;
+
+  let progress = await prisma.channelProgress.findUnique({
+    where: { channelId },
+  });
+
+  if (!progress) {
+    progress = await prisma.channelProgress.create({
+      data: { channelId, channelName: channelId },
+    });
+  }
+
+  try {
+    const chat = await client.invoke({
+      _: "searchPublicChat",
+      username: channelId.replace("@", ""),
+    });
+
+    if (!chat || chat._ !== "chat") {
+      await logger.warn("scan", `Channel not found: ${channelId}`);
+      return { newMessages: 0, ipaMessages: 0 };
+    }
+
+    await resolveChannelInfo(channelId);
+
+    progress = await prisma.channelProgress.findUnique({
+      where: { channelId },
+    });
+    if (!progress) return { newMessages: 0, ipaMessages: 0 };
+
+    const disabledTopicIds = new Set<number>();
+    if (progress.isForum) {
+      for (const t of parseForumTopics(progress.forumTopics)) {
+        if (!t.enabled) disabledTopicIds.add(t.id);
+      }
+    }
+
+    let fromMessageId = 0;
+    let hasMore = true;
+    let ipasSeen = 0; // counts ALL IPAs encountered (new + already processed)
+
+    while (hasMore) {
+      const fetchLimit = 100;
+
+      const history = (await client.invoke({
+        _: "getChatHistory",
+        chat_id: chat.id,
+        from_message_id: fromMessageId,
+        offset: 0,
+        limit: fetchLimit,
+        only_local: false,
+      })) as { messages?: Array<{ id: number; message_thread_id?: number; content: { _: string; document?: { file_name?: string; document?: { size?: number; id?: number } }; caption?: { text?: string } } }> };
+
+      const messages = history.messages || [];
+      if (messages.length === 0) {
+        hasMore = false;
+        break;
+      }
+
+      for (const msg of messages) {
+        const hasIpa =
+          msg.content?._ === "messageDocument" &&
+          msg.content.document?.file_name?.toLowerCase().endsWith(".ipa");
+
+        // Count every IPA toward the target, even already-processed ones
+        if (hasIpa) ipasSeen++;
+
+        // Skip disabled forum topics
+        if (
+          disabledTopicIds.size > 0 &&
+          msg.message_thread_id &&
+          disabledTopicIds.has(msg.message_thread_id)
+        ) {
+          // Still mark as processed if not already
+          const existing = await prisma.processedMessage.findUnique({
+            where: { channelId_messageId: { channelId, messageId: msg.id } },
+          });
+          if (!existing) {
+            await prisma.processedMessage.create({
+              data: { channelId, messageId: msg.id, hasIpa: false, status: "skipped" },
+            });
+          }
+          continue;
+        }
+
+        // Check if already processed — skip but still counted IPA above
+        const existing = await prisma.processedMessage.findUnique({
+          where: { channelId_messageId: { channelId, messageId: msg.id } },
+        });
+        if (existing) continue;
+
+        newMessages++;
+
+        if (hasIpa) {
+          ipaMessages++;
+          await prisma.processedMessage.create({
+            data: {
+              channelId,
+              messageId: msg.id,
+              hasIpa: true,
+              fileName: msg.content.document!.file_name!,
+              fileSize: BigInt(msg.content.document!.document?.size || 0),
+              messageText: msg.content.caption?.text || null,
+              status: "pending",
+            },
+          });
+        } else {
+          await prisma.processedMessage.create({
+            data: { channelId, messageId: msg.id, hasIpa: false, status: "skipped" },
+          });
+        }
+
+        // Stop once we've seen enough IPAs
+        if (ipaTarget > 0 && ipasSeen >= ipaTarget) {
+          hasMore = false;
+          break;
+        }
+      }
+
+      const lastMsg = messages[messages.length - 1];
+      if (lastMsg) fromMessageId = lastMsg.id;
+      if (messages.length < fetchLimit) hasMore = false;
+      if (ipaTarget > 0 && ipasSeen >= ipaTarget) hasMore = false;
+    }
+
+    await prisma.channelProgress.update({
+      where: { channelId },
+      data: {
+        lastMessageId: fromMessageId,
+        totalMessages: { increment: newMessages },
+        ipaCount: { increment: ipaMessages },
+        lastScannedAt: new Date(),
+      },
+    });
+
+    await logger.success(
+      "scan",
+      `Scan Previous ${channelId}: ${newMessages} new messages, ${ipaMessages} new IPAs found (scanned until ${ipasSeen} IPAs seen)`
+    );
+  } catch (e) {
+    await logger.error("scan", `Failed to scan previous ${channelId}`, {
+      error: String(e),
+    });
+  }
+
+  return { newMessages, ipaMessages };
+}

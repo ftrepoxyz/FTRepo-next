@@ -72,6 +72,7 @@ export interface AppSettings {
   temp_dir: string;
   log_retention_days: number;
   scan_message_limit: number;
+  previous_ipa_scan_amount: number;
   known_tweaks: TweakConfig[];
   source_name: string;
   source_description: string;

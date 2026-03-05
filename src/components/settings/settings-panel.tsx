@@ -27,6 +27,7 @@ import {
 import { toast } from "sonner";
 import {
   Scan,
+  History,
   FileJson,
   Trash2,
   Database,
@@ -804,6 +805,17 @@ export function SettingsPanel() {
                 </p>
               </div>
               <div className="space-y-2">
+                <Label>Previous IPA Scan Amount</Label>
+                <NumberInput
+                  value={Number(settings.previous_ipa_scan_amount) || 50}
+                  min={1}
+                  onChange={(v) => updateSetting("previous_ipa_scan_amount", v)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Number of IPAs to find when running Scan Previous
+                </p>
+              </div>
+              <div className="space-y-2">
                 <Label>App Store Country</Label>
                 <Input
                   value={String(settings.appstore_country || "us")}
@@ -1493,6 +1505,14 @@ export function SettingsPanel() {
               >
                 <Scan className="mr-2 h-4 w-4" />
                 Trigger Scan
+              </Button>
+              <Button
+                variant="outline"
+                className="justify-start"
+                onClick={() => runAction("scan-previous")}
+              >
+                <History className="mr-2 h-4 w-4" />
+                Scan Previous
               </Button>
               <Button
                 variant="outline"
