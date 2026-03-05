@@ -65,23 +65,7 @@ export function Header() {
         >
           <Menu className="h-5 w-5" />
         </Button>
-        <Badge
-          variant="outline"
-          className={
-            systemEnabled
-              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs"
-              : "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400 text-xs"
-          }
-        >
-          <span className="relative mr-1.5 flex h-2 w-2">
-            {systemEnabled && (
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-            )}
-            <span className={`relative inline-flex h-2 w-2 rounded-full ${systemEnabled ? "bg-emerald-500" : "bg-red-500"}`} />
-          </span>
-          {systemEnabled ? "System Online" : "System Offline"}
-        </Badge>
-        {telegramState !== null && telegramState !== "ready" && (
+        {telegramState !== null && telegramState !== "ready" ? (
           <Badge
             variant="outline"
             className="border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400 text-xs"
@@ -95,6 +79,23 @@ export function Header() {
             {telegramState === "connecting"
               ? "Telegram Connecting"
               : "Telegram Disconnected"}
+          </Badge>
+        ) : (
+          <Badge
+            variant="outline"
+            className={
+              systemEnabled
+                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs"
+                : "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400 text-xs"
+            }
+          >
+            <span className="relative mr-1.5 flex h-2 w-2">
+              {systemEnabled && (
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+              )}
+              <span className={`relative inline-flex h-2 w-2 rounded-full ${systemEnabled ? "bg-emerald-500" : "bg-red-500"}`} />
+            </span>
+            {systemEnabled ? "System Online" : "System Offline"}
           </Badge>
         )}
       </div>

@@ -22,28 +22,18 @@ async function main() {
     await logger.warn("system", "No Telegram channels configured. Worker will idle.");
   }
 
-  // Initialize Telegram client (retry with backoff after redeployment)
+  // Initialize Telegram client — if the session is valid it will reconnect
+  // automatically. If it needs 2FA or a verification code the user must
+  // complete the flow from the Settings UI; retrying here won't help.
   let client: TdlClient;
-  const maxRetries = 5;
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      client = await getTelegramClient();
-      break;
-    } catch (e) {
-      if (attempt === maxRetries) {
-        await logger.error("system", "Failed to initialize Telegram client after retries", {
-          error: String(e),
-        });
-        process.exit(1);
-      }
-      const delay = attempt * 5_000;
-      await logger.warn("system", `Telegram client not ready (attempt ${attempt}/${maxRetries}), retrying in ${delay / 1000}s...`, {
-        error: String(e),
-      });
-      await new Promise((r) => setTimeout(r, delay));
-    }
+  try {
+    client = await getTelegramClient();
+  } catch (e) {
+    await logger.error("system", "Telegram client not ready — complete auth in Settings → Integrations", {
+      error: String(e),
+    });
+    process.exit(1);
   }
-  client = client!;
 
   // Resolve channel IDs
   const chatIdMap = new Map<string, number>();

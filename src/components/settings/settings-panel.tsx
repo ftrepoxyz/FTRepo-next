@@ -1151,10 +1151,7 @@ export function SettingsPanel() {
                           error: data.error ?? null,
                           passwordHint: data.passwordHint ?? "",
                         });
-                        updateSetting("telegram_api_id", "");
-                        updateSetting("telegram_api_hash", "");
-                        updateSetting("telegram_phone", "");
-                        toast.success("Telegram integration reset");
+                        toast.success("Telegram session reset (credentials preserved)");
                       } catch {
                         toast.error("Failed to reset Telegram");
                       } finally {
