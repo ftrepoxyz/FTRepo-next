@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import { PageContainer } from "@/components/layout/page-container";
 import { QueueTable } from "@/components/queue/queue-table";
 import { Button } from "@/components/ui/button";
@@ -30,7 +31,9 @@ export default function QueuePage() {
         </Button>
       }
     >
-      <QueueTable />
+      <Suspense>
+        <QueueTable />
+      </Suspense>
     </PageContainer>
   );
 }
