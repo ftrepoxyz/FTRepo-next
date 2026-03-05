@@ -14,7 +14,7 @@ interface AltStoreRepo {
  */
 export function generateAltStoreJson(
   ipas: DownloadedIpa[],
-  source: { name: string },
+  source: { name: string; iconURL?: string },
   maxVersions: number,
   knownTweaks: TweakConfig[]
 ): string {
@@ -38,7 +38,7 @@ export function generateAltStoreJson(
       name: latest.appName,
       bundleIdentifier: latest.bundleId,
       developerName: latest.developerName || "Unknown Developer",
-      iconURL: latest.iconUrl || null,
+      iconURL: latest.iconUrl || source.iconURL || "https://placehold.co/128",
       localizedDescription: latest.description || latest.appName,
       versions,
       appPermissions: {},

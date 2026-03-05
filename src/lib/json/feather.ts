@@ -8,7 +8,7 @@ import { generateAltStoreJson } from "./altstore";
  */
 export function generateFeatherJson(
   ipas: DownloadedIpa[],
-  source: { name: string },
+  source: { name: string; iconURL?: string },
   maxVersions: number,
   knownTweaks: TweakConfig[]
 ): string {

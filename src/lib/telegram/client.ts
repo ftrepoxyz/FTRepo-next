@@ -14,6 +14,9 @@ export type TelegramAuthState =
   | "ready"
   | "error";
 
+/** How long to wait for TDLib login before declaring the session stale. */
+const LOGIN_TIMEOUT_MS = 30_000;
+
 interface AuthManager {
   client: Client | null;
   state: TelegramAuthState;
@@ -22,6 +25,10 @@ interface AuthManager {
   stateVersion: number;
   codeResolver: ((code: string) => void) | null;
   passwordResolver: ((password: string) => void) | null;
+  /** Timestamp when the current connection attempt started. */
+  connectingSince: number | null;
+  /** Handle for the login timeout so it can be cleared on success. */
+  loginTimeout: ReturnType<typeof setTimeout> | null;
 }
 
 const globalForTdl = globalThis as unknown as {
@@ -38,6 +45,8 @@ function getManager(): AuthManager {
       stateVersion: 0,
       codeResolver: null,
       passwordResolver: null,
+      connectingSince: null,
+      loginTimeout: null,
     };
   }
   return globalForTdl.telegramAuth;
@@ -82,12 +91,20 @@ export async function startTelegramAuth(): Promise<void> {
   const mgr = getManager();
 
   if (mgr.state === "ready") return;
-  if (
-    mgr.state === "connecting" ||
-    mgr.state === "waiting_code" ||
-    mgr.state === "waiting_password"
-  ) {
+  if (mgr.state === "waiting_code" || mgr.state === "waiting_password") {
     return;
+  }
+  if (mgr.state === "connecting") {
+    // Allow a retry if the previous attempt has been stuck for too long
+    const elapsed = mgr.connectingSince
+      ? Date.now() - mgr.connectingSince
+      : Infinity;
+    if (elapsed < LOGIN_TIMEOUT_MS) return;
+    // Stuck — fall through to clean up and retry
+    await logger.warn(
+      "system",
+      `TDLib stuck in "connecting" for ${Math.round(elapsed / 1000)}s, retrying`
+    );
   }
 
   const settings = await getSettings();
@@ -111,7 +128,9 @@ export async function startTelegramAuth(): Promise<void> {
   }
 
   setState(mgr, "connecting", null);
+  mgr.connectingSince = Date.now();
   mgr.passwordHint = "";
+  if (mgr.loginTimeout) clearTimeout(mgr.loginTimeout);
 
   try {
     const { getTdjson } = await import("prebuilt-tdlib");
@@ -198,10 +217,14 @@ export async function startTelegramAuth(): Promise<void> {
       },
     })
     .then(() => {
+      if (mgr.loginTimeout) { clearTimeout(mgr.loginTimeout); mgr.loginTimeout = null; }
+      mgr.connectingSince = null;
       setState(mgr, "ready", null);
       logger.success("system", "Telegram client authenticated");
     })
     .catch(async (err) => {
+      if (mgr.loginTimeout) { clearTimeout(mgr.loginTimeout); mgr.loginTimeout = null; }
+      mgr.connectingSince = null;
       const errStr = String(err);
       if (errStr.includes("AUTH_KEY_DUPLICATED")) {
         try { await client.close(); } catch { /* ignore */ }
@@ -219,6 +242,28 @@ export async function startTelegramAuth(): Promise<void> {
       }
       logger.error("system", "Telegram auth failed", { error: errStr });
     });
+
+  // Safety net: if login neither succeeds nor fails within the timeout,
+  // the session is most likely stale. Wipe it and let the user reconnect.
+  mgr.loginTimeout = setTimeout(async () => {
+    mgr.loginTimeout = null;
+    mgr.connectingSince = null;
+    if (mgr.state !== "connecting") return; // already resolved
+
+    await logger.warn(
+      "system",
+      "TDLib login timed out — wiping stale session"
+    );
+    try { await client.close(); } catch { /* ignore */ }
+    mgr.client = null;
+    rmSync(dbDir, { recursive: true, force: true });
+    rmSync(filesDir, { recursive: true, force: true });
+    setState(
+      mgr,
+      "error",
+      "Connection timed out. The saved session may be stale. Please reconnect."
+    );
+  }, LOGIN_TIMEOUT_MS);
 
   // Wait for either immediate auth (existing session) or state transition
   await waitForStateUpdate(mgr);
@@ -266,6 +311,7 @@ export async function getTelegramClient(): Promise<Client> {
 
 export async function closeTelegramClient(): Promise<void> {
   const mgr = getManager();
+  if (mgr.loginTimeout) { clearTimeout(mgr.loginTimeout); mgr.loginTimeout = null; }
   if (mgr.client) {
     try {
       await mgr.client.close();

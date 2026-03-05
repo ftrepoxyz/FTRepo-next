@@ -3,7 +3,7 @@ export interface AltStoreApp {
   bundleIdentifier: string;
   developerName: string;
   localizedDescription: string;
-  iconURL: string | null;
+  iconURL: string;
   versions: AltStoreVersion[];
   appPermissions: Record<string, never>;
   version: string;
