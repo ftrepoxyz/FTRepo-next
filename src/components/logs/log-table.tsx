@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { useUrlState, useUrlNumberState } from "@/hooks/use-url-state";
 import {
   Table,
   TableBody,
@@ -135,13 +136,13 @@ function SortHeader({ label, field, sortBy, sortOrder, onSort }: {
 }
 
 export function LogTable() {
-  const [search, setSearch] = useState("");
-  const [typeFilter, setTypeFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
+  const [search, setSearch] = useUrlState("search");
+  const [typeFilter, setTypeFilter] = useUrlState("type");
+  const [statusFilter, setStatusFilter] = useUrlState("status");
   const [selectedLog, setSelectedLog] = useState<ActivityEntry | null>(null);
-  const [page, setPage] = useState(1);
-  const [sortBy, setSortBy] = useState<SortField>("createdAt");
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [page, setPage] = useUrlNumberState("page", 1);
+  const [sortBy, setSortBy] = useUrlState("sortBy", "createdAt") as [SortField, (v: string) => void];
+  const [sortOrder, setSortOrder] = useUrlState("sortOrder", "desc") as ["asc" | "desc", (v: string) => void];
 
   const handleSort = (field: SortField) => {
     if (field === sortBy) {

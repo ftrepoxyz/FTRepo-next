@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { useUrlState, useUrlNumberState } from "@/hooks/use-url-state";
 import {
   Table,
   TableBody,
@@ -167,12 +168,12 @@ function Checkbox({ checked, onChange, className }: {
 
 export function QueueTable() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  const [channelFilter, setChannelFilter] = useState("");
-  const [page, setPage] = useState(1);
-  const [sortBy, setSortBy] = useState<SortField>("createdAt");
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [search, setSearch] = useUrlState("search");
+  const [statusFilter, setStatusFilter] = useUrlState("status");
+  const [channelFilter, setChannelFilter] = useUrlState("channel");
+  const [page, setPage] = useUrlNumberState("page", 1);
+  const [sortBy, setSortBy] = useUrlState("sortBy", "createdAt") as [SortField, (v: string) => void];
+  const [sortOrder, setSortOrder] = useUrlState("sortOrder", "desc") as ["asc" | "desc", (v: string) => void];
 
   const handleSort = (field: SortField) => {
     if (field === sortBy) {
