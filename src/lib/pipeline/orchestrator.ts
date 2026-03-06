@@ -10,6 +10,7 @@ import { claimNextPending, markCompleted, markFailed } from "./queue";
 import { downloadIpaFromMessage } from "../telegram/downloader";
 import { getTelegramClient } from "../telegram/client";
 import { getTelegramChannels } from "../config";
+import { enforceVersionLimit } from "../github/cleanup";
 
 const globalForProcessing = globalThis as unknown as {
   queueProcessing: boolean | undefined;
@@ -138,6 +139,21 @@ export async function processNextIpa(
         messageId: entry.messageId,
       },
     });
+
+    // Step 6b: Enforce version limit — prune old versions beyond max_versions_per_app
+    try {
+      await enforceVersionLimit(
+        metadata.bundleId,
+        metadata.appName,
+        metadata.tweaks,
+        metadata.isTweaked,
+        entry.channelId
+      );
+    } catch (e) {
+      await logger.warn("process", `Version limit enforcement failed for ${metadata.appName}`, {
+        error: String(e),
+      });
+    }
 
     await markCompleted(entry.id);
     await logger.success("process", `Successfully processed ${metadata.appName} v${metadata.version}`);

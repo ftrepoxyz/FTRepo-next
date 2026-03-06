@@ -106,6 +106,77 @@ export async function cleanupReleases(): Promise<CleanupResult> {
   return { deletedReleases, freedBytes };
 }
 
+/**
+ * Enforce the max_versions_per_app limit for a single composite key group.
+ * Called inline after a new IPA is saved to the database so old versions
+ * are cleaned up immediately instead of waiting for the periodic cleanup.
+ */
+export async function enforceVersionLimit(
+  bundleId: string,
+  appName: string,
+  tweaks: string[],
+  isTweaked: boolean,
+  channelId: string
+): Promise<void> {
+  const settings = await getSettings();
+  const maxVersions = settings.max_versions_per_app;
+  const knownTweaks = settings.known_tweaks;
+
+  const { groupKey } = matchTweak(bundleId, appName, tweaks, isTweaked, knownTweaks, channelId);
+
+  // Get all IPAs and filter to same composite key (sorted newest first)
+  const allIpas = await prisma.downloadedIpa.findMany({
+    where: { bundleId },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const groupIpas = allIpas.filter((ipa) => {
+    const t = (ipa.tweaks as string[]) || [];
+    const result = matchTweak(ipa.bundleId, ipa.appName, t, ipa.isTweaked, knownTweaks, ipa.channelId);
+    return result.groupKey === groupKey;
+  });
+
+  if (groupIpas.length <= maxVersions) return;
+
+  const toRemove = groupIpas.slice(maxVersions);
+  const affectedReleaseIds = new Set<number>();
+
+  for (const ipa of toRemove) {
+    if (ipa.githubAssetId) {
+      try {
+        await deleteReleaseAsset(ipa.githubAssetId);
+        if (ipa.githubReleaseId) {
+          affectedReleaseIds.add(ipa.githubReleaseId);
+        }
+      } catch (e) {
+        await logger.warn("cleanup", `Failed to delete asset for ${groupKey}@${ipa.version}`, {
+          error: String(e),
+        });
+      }
+    }
+
+    await prisma.downloadedIpa.delete({ where: { id: ipa.id } });
+  }
+
+  // Clean up any releases that became empty
+  for (const releaseId of affectedReleaseIds) {
+    try {
+      const release = await getRelease(releaseId);
+      if (!release) continue;
+      const hasIpaAssets = release.assets.some((a) => a.name.toLowerCase().endsWith(".ipa"));
+      if (!hasIpaAssets) {
+        await deleteRelease(releaseId);
+      }
+    } catch {
+      // Ignore — periodic cleanup will catch it
+    }
+  }
+
+  if (toRemove.length > 0) {
+    await logger.info("cleanup", `Pruned ${toRemove.length} old version(s) of ${groupKey} (limit: ${maxVersions})`);
+  }
+}
+
 function formatBytes(bytes: number): string {
   if (bytes === 0) return "0 B";
   const k = 1024;
