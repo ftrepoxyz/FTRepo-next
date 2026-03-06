@@ -1,6 +1,6 @@
 import { DownloadedIpa } from "@prisma/client";
 import { TweakConfig } from "@/types/config";
-import { getLatestPerCompositeKey } from "./grouping";
+import { getLatestPerCompositeKey, buildDisplayName } from "./grouping";
 
 interface ESignRepo {
   name: string;
@@ -35,9 +35,10 @@ export function generateESignJson(
   const latestByKey = getLatestPerCompositeKey(ipas, knownTweaks, channelPriorities);
   const apps: ESignApp[] = [];
 
-  for (const ipa of latestByKey) {
+  for (const { ipa, matchedTweak } of latestByKey) {
+    const displayName = buildDisplayName(ipa.appName, matchedTweak);
     apps.push({
-      name: ipa.appName,
+      name: displayName,
       version: ipa.version,
       versionDate: ipa.createdAt.toISOString().split("T")[0],
       size: Number(ipa.fileSize),

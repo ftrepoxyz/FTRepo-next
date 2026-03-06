@@ -1,6 +1,6 @@
 import { DownloadedIpa } from "@prisma/client";
 import { AltStoreApp, AltStoreVersion, TweakConfig } from "@/types/config";
-import { groupByCompositeKey } from "./grouping";
+import { groupByCompositeKey, buildDisplayName } from "./grouping";
 
 interface AltStoreRepo {
   name: string;
@@ -21,8 +21,9 @@ export function generateAltStoreJson(
   const grouped = groupByCompositeKey(ipas, knownTweaks);
   const apps: AltStoreApp[] = [];
 
-  for (const [, bundleIpas] of grouped) {
+  for (const [, { ipas: bundleIpas, matchedTweak }] of grouped) {
     const latest = bundleIpas[0];
+    const displayName = buildDisplayName(latest.appName, matchedTweak);
     const versions: AltStoreVersion[] = bundleIpas
       .slice(0, maxVersions)
       .map((ipa) => ({
@@ -35,7 +36,7 @@ export function generateAltStoreJson(
     const latestVersion = versions[0];
 
     apps.push({
-      name: latest.appName,
+      name: displayName,
       bundleIdentifier: latest.bundleId,
       developerName: latest.developerName || "Unknown Developer",
       iconURL: latest.iconUrl || source.iconURL || "https://placehold.co/128",

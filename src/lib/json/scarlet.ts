@@ -1,6 +1,6 @@
 import { DownloadedIpa } from "@prisma/client";
 import { TweakConfig } from "@/types/config";
-import { getLatestPerCompositeKey } from "./grouping";
+import { getLatestPerCompositeKey, buildDisplayName } from "./grouping";
 
 interface ScarletRepo {
   META: {
@@ -39,9 +39,10 @@ export function generateScarletJson(
   const rgbColor = hexToRgbFloats(source.tintColor);
   const apps: ScarletApp[] = [];
 
-  for (const ipa of latestByKey) {
+  for (const { ipa, matchedTweak } of latestByKey) {
+    const displayName = buildDisplayName(ipa.appName, matchedTweak);
     apps.push({
-      name: ipa.appName,
+      name: displayName,
       version: ipa.version,
       down: ipa.downloadUrl || ipa.githubAssetUrl || "",
       category: ipa.isTweaked ? "Tweaked" : "Other",

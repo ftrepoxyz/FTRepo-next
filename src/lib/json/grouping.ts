@@ -2,6 +2,20 @@ import { DownloadedIpa } from "@prisma/client";
 import { matchTweak } from "@/lib/ipa/tweak-matcher";
 import type { TweakConfig } from "@/types/config";
 
+export interface GroupedIpas {
+  ipas: DownloadedIpa[];
+  matchedTweak: string | null;
+}
+
+/**
+ * Build a display name by appending the matched tweak name if not already present.
+ */
+export function buildDisplayName(appName: string, matchedTweak: string | null): string {
+  if (!matchedTweak) return appName;
+  if (appName.toLowerCase().includes(matchedTweak.toLowerCase())) return appName;
+  return `${appName} ${matchedTweak}`;
+}
+
 /**
  * Group IPAs by composite key (bundleId::tweakName or just bundleId).
  * Used by AltStore/Feather generators that need multiple versions per group.
@@ -10,16 +24,16 @@ import type { TweakConfig } from "@/types/config";
 export function groupByCompositeKey(
   ipas: DownloadedIpa[],
   knownTweaks: TweakConfig[]
-): Map<string, DownloadedIpa[]> {
+): Map<string, GroupedIpas> {
   const sorted = [...ipas].sort(
     (a, b) => b.createdAt.getTime() - a.createdAt.getTime()
   );
 
-  const grouped = new Map<string, DownloadedIpa[]>();
+  const grouped = new Map<string, GroupedIpas>();
 
   for (const ipa of sorted) {
     const tweaks = (ipa.tweaks as string[]) || [];
-    const { groupKey } = matchTweak(
+    const { groupKey, matchedTweak } = matchTweak(
       ipa.bundleId,
       ipa.appName,
       tweaks,
@@ -28,12 +42,20 @@ export function groupByCompositeKey(
       ipa.channelId
     );
 
-    const list = grouped.get(groupKey) || [];
-    list.push(ipa);
-    grouped.set(groupKey, list);
+    const existing = grouped.get(groupKey);
+    if (existing) {
+      existing.ipas.push(ipa);
+    } else {
+      grouped.set(groupKey, { ipas: [ipa], matchedTweak });
+    }
   }
 
   return grouped;
+}
+
+export interface LatestIpaWithTweak {
+  ipa: DownloadedIpa;
+  matchedTweak: string | null;
 }
 
 /**
@@ -47,12 +69,12 @@ export function getLatestPerCompositeKey(
   ipas: DownloadedIpa[],
   knownTweaks: TweakConfig[],
   channelPriorities?: Map<string, number>
-): DownloadedIpa[] {
-  const map = new Map<string, DownloadedIpa>();
+): LatestIpaWithTweak[] {
+  const map = new Map<string, LatestIpaWithTweak>();
 
   for (const ipa of ipas) {
     const tweaks = (ipa.tweaks as string[]) || [];
-    const { groupKey } = matchTweak(
+    const { groupKey, matchedTweak } = matchTweak(
       ipa.bundleId,
       ipa.appName,
       tweaks,
@@ -63,24 +85,24 @@ export function getLatestPerCompositeKey(
 
     const existing = map.get(groupKey);
     if (!existing) {
-      map.set(groupKey, ipa);
+      map.set(groupKey, { ipa, matchedTweak });
       continue;
     }
 
     // Latest version always wins
-    if (ipa.createdAt > existing.createdAt) {
-      map.set(groupKey, ipa);
+    if (ipa.createdAt > existing.ipa.createdAt) {
+      map.set(groupKey, { ipa, matchedTweak });
     } else if (
-      ipa.createdAt.getTime() === existing.createdAt.getTime() &&
+      ipa.createdAt.getTime() === existing.ipa.createdAt.getTime() &&
       channelPriorities &&
       ipa.channelId &&
-      existing.channelId
+      existing.ipa.channelId
     ) {
       // Tiebreaker: prefer IPA from higher-priority channel (lower number)
       const ipaPriority = channelPriorities.get(ipa.channelId) ?? Infinity;
-      const existingPriority = channelPriorities.get(existing.channelId) ?? Infinity;
+      const existingPriority = channelPriorities.get(existing.ipa.channelId) ?? Infinity;
       if (ipaPriority < existingPriority) {
-        map.set(groupKey, ipa);
+        map.set(groupKey, { ipa, matchedTweak });
       }
     }
   }
