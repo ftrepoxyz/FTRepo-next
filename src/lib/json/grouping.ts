@@ -13,6 +13,7 @@ export interface GroupedIpas {
 export function buildDisplayName(appName: string, matchedTweak: string | null): string {
   if (!matchedTweak) return appName;
   if (appName.toLowerCase().includes(matchedTweak.toLowerCase())) return appName;
+  if (matchedTweak.toLowerCase().includes(appName.toLowerCase())) return matchedTweak;
   return `${appName} ${matchedTweak}`;
 }
 
