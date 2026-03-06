@@ -74,3 +74,43 @@ export async function publishAllJsonFiles(
     );
   }
 }
+
+/**
+ * Delete a JSON file from the repository via the GitHub Contents API.
+ * Silently succeeds if the file doesn't exist.
+ */
+export async function deleteJsonFile(path: string): Promise<void> {
+  const ok = await getOctokit();
+  const settings = await getSettings();
+  const owner = settings.github_owner;
+  const repo = settings.github_repo;
+  const branch = settings.github_branch;
+
+  // Get the file's SHA (required for deletion)
+  let sha: string | undefined;
+  try {
+    const existing = await ok.repos.getContent({
+      owner,
+      repo,
+      path,
+      ref: branch,
+    });
+    if (!Array.isArray(existing.data) && "sha" in existing.data) {
+      sha = existing.data.sha;
+    }
+  } catch {
+    // File doesn't exist — nothing to delete
+    return;
+  }
+
+  if (sha) {
+    await ok.repos.deleteFile({
+      owner,
+      repo,
+      path,
+      message: `Delete ${path}`,
+      sha,
+      branch,
+    });
+  }
+}

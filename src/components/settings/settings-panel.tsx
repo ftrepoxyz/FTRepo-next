@@ -1579,7 +1579,7 @@ export function SettingsPanel() {
                 Are you absolutely sure?
               </DialogTitle>
               <DialogDescription>
-                This will permanently delete <strong>all queue entries</strong>, <strong>all downloaded IPAs</strong> from the database, and <strong>all GitHub releases</strong>. Channel scan progress will be reset. This action cannot be undone.
+                This will permanently delete <strong>all queue entries</strong>, <strong>all downloaded IPAs</strong> from the database, <strong>all GitHub releases and tags</strong>, and <strong>all JSON files</strong> from the repository. Channel scan progress will be reset. This action cannot be undone.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-2">

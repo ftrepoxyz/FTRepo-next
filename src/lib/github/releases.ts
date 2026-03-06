@@ -184,6 +184,15 @@ export async function deleteReleaseAsset(assetId: number): Promise<void> {
 }
 
 /**
+ * Delete a git tag by name.
+ */
+export async function deleteTag(tagName: string): Promise<void> {
+  const ok = await getOctokit();
+  const { owner, repo } = await getRepoInfo();
+  await ok.git.deleteRef({ owner, repo, ref: `tags/${tagName}` });
+}
+
+/**
  * Get a release by ID and return its remaining assets.
  */
 export async function getRelease(releaseId: number): Promise<{ id: number; assets: { id: number; name: string }[] } | null> {
