@@ -51,6 +51,17 @@ export function groupByCompositeKey(
     }
   }
 
+  // Deduplicate by version within each group (keep the latest per version).
+  // Since ipas are sorted by createdAt desc, the first seen is the most recent.
+  for (const [, group] of grouped) {
+    const seen = new Set<string>();
+    group.ipas = group.ipas.filter((ipa) => {
+      if (seen.has(ipa.version)) return false;
+      seen.add(ipa.version);
+      return true;
+    });
+  }
+
   return grouped;
 }
 

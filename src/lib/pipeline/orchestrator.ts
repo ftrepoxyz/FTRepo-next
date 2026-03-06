@@ -5,12 +5,13 @@ import { logger } from "../logger";
 import { extractIpa } from "../ipa/extractor";
 import { cachePrivacyDescriptions } from "../ipa/privacy";
 import { getCachedLookup } from "../appstore/cache";
-import { uploadIpaToDailyRelease } from "../github/releases";
+import { uploadIpaToDailyRelease, deleteReleaseAsset } from "../github/releases";
 import { claimNextPending, markCompleted, markFailed } from "./queue";
 import { downloadIpaFromMessage } from "../telegram/downloader";
 import { getTelegramClient } from "../telegram/client";
-import { getTelegramChannels } from "../config";
+import { getTelegramChannels, getSettings } from "../config";
 import { enforceVersionLimit } from "../github/cleanup";
+import { matchTweak } from "../ipa/tweak-matcher";
 
 const globalForProcessing = globalThis as unknown as {
   queueProcessing: boolean | undefined;
@@ -106,6 +107,32 @@ export async function processNextIpa(
       await logger.warn("process", `GitHub upload failed for ${metadata.appName}, saving without download URL`, {
         error: String(e),
       });
+    }
+
+    // Step 5b: Remove existing IPAs with same composite key + version
+    // (keeps only the most recently posted build for each version)
+    try {
+      const settings = await getSettings();
+      const { groupKey } = matchTweak(
+        metadata.bundleId, metadata.appName, metadata.tweaks,
+        metadata.isTweaked, settings.known_tweaks, entry.channelId
+      );
+      const existingIpas = await prisma.downloadedIpa.findMany({
+        where: { bundleId: metadata.bundleId, version: metadata.version },
+      });
+      for (const existing of existingIpas) {
+        const t = (existing.tweaks as string[]) || [];
+        const result = matchTweak(existing.bundleId, existing.appName, t, existing.isTweaked, settings.known_tweaks, existing.channelId);
+        if (result.groupKey === groupKey) {
+          if (existing.githubAssetId) {
+            try { await deleteReleaseAsset(existing.githubAssetId); } catch { /* already deleted */ }
+          }
+          await prisma.downloadedIpa.delete({ where: { id: existing.id } });
+          await logger.info("process", `Replaced duplicate ${metadata.appName} v${metadata.version}`);
+        }
+      }
+    } catch (e) {
+      await logger.warn("process", `Duplicate check failed for ${metadata.appName}`, { error: String(e) });
     }
 
     // Step 6: Save to database
