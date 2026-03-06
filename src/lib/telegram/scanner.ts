@@ -4,6 +4,16 @@ import { logger } from "../logger";
 import { resolveChannelInfo } from "./channel-info";
 import { parseForumTopics } from "./forum-topics";
 
+interface CollectedMessage {
+  channelId: string;
+  messageId: number;
+  hasIpa: boolean;
+  fileName?: string;
+  fileSize?: bigint;
+  messageText?: string | null;
+  status: string;
+}
+
 /**
  * Scan a Telegram channel for IPA files.
  * Tracks progress in channel_progress to resume from the last scanned message.
@@ -56,14 +66,13 @@ export async function scanChannel(
       }
     }
 
-    // Always start from the newest message (0) and walk backward.
-    // We stop when we hit an already-processed message (meaning we've
-    // caught up to the previous scan) or when we reach the message limit.
+    // Phase 1: Scan all messages and collect results in memory.
+    // We scan up to messageLimit new messages (or the entire history)
+    // before writing anything to the database.
     let fromMessageId = 0;
     let hasMore = true;
     let totalScanned = 0;
-    let consecutiveKnown = 0;
-    const KNOWN_THRESHOLD = 20; // stop after 20 consecutive already-seen messages
+    const collectedMessages: CollectedMessage[] = [];
 
     while (hasMore) {
       const fetchLimit = 100;
@@ -84,7 +93,7 @@ export async function scanChannel(
       }
 
       for (const msg of messages) {
-        // Check if already processed
+        // Check if already processed — skip without early termination
         const existing = await prisma.processedMessage.findUnique({
           where: {
             channelId_messageId: {
@@ -94,17 +103,7 @@ export async function scanChannel(
           },
         });
 
-        if (existing) {
-          consecutiveKnown++;
-          // If we've hit enough consecutive known messages, we've caught up
-          if (consecutiveKnown >= KNOWN_THRESHOLD) {
-            hasMore = false;
-            break;
-          }
-          continue;
-        }
-
-        consecutiveKnown = 0;
+        if (existing) continue;
 
         // Skip messages from disabled forum topics (don't count toward scan limit)
         if (
@@ -112,13 +111,11 @@ export async function scanChannel(
           msg.message_thread_id &&
           disabledTopicIds.has(msg.message_thread_id)
         ) {
-          await prisma.processedMessage.create({
-            data: {
-              channelId,
-              messageId: msg.id,
-              hasIpa: false,
-              status: "skipped",
-            },
+          collectedMessages.push({
+            channelId,
+            messageId: msg.id,
+            hasIpa: false,
+            status: "skipped",
           });
           continue;
         }
@@ -133,25 +130,21 @@ export async function scanChannel(
 
         if (hasIpa) {
           ipaMessages++;
-          await prisma.processedMessage.create({
-            data: {
-              channelId,
-              messageId: msg.id,
-              hasIpa: true,
-              fileName: msg.content.document!.file_name!,
-              fileSize: BigInt(msg.content.document!.document?.size || 0),
-              messageText: msg.content.caption?.text || null,
-              status: "pending",
-            },
+          collectedMessages.push({
+            channelId,
+            messageId: msg.id,
+            hasIpa: true,
+            fileName: msg.content.document!.file_name!,
+            fileSize: BigInt(msg.content.document!.document?.size || 0),
+            messageText: msg.content.caption?.text || null,
+            status: "pending",
           });
         } else {
-          await prisma.processedMessage.create({
-            data: {
-              channelId,
-              messageId: msg.id,
-              hasIpa: false,
-              status: "skipped",
-            },
+          collectedMessages.push({
+            channelId,
+            messageId: msg.id,
+            hasIpa: false,
+            status: "skipped",
           });
         }
       }
@@ -165,6 +158,22 @@ export async function scanChannel(
       if (messages.length < fetchLimit) hasMore = false;
       // Stop if we've hit the message limit
       if (messageLimit > 0 && totalScanned >= messageLimit) hasMore = false;
+    }
+
+    // Phase 2: Batch-write all collected messages to the database
+    if (collectedMessages.length > 0) {
+      await prisma.processedMessage.createMany({
+        data: collectedMessages.map((m) => ({
+          channelId: m.channelId,
+          messageId: m.messageId,
+          hasIpa: m.hasIpa,
+          fileName: m.fileName ?? null,
+          fileSize: m.fileSize ?? null,
+          messageText: m.messageText ?? null,
+          status: m.status,
+        })),
+        skipDuplicates: true,
+      });
     }
 
     // Update channel progress
@@ -189,9 +198,9 @@ export async function scanChannel(
 }
 
 /**
- * Scan a Telegram channel backwards, ignoring already-processed messages,
- * until a target number of IPAs have been encountered (both new and already-seen).
- * This allows rescanning deeper into history than the normal scan.
+ * Scan a Telegram channel backwards until a target number of NEW (unprocessed)
+ * IPAs have been found. Already-processed IPAs do not count toward the target,
+ * ensuring the scan goes deep enough to discover genuinely new content.
  */
 export async function scanChannelPrevious(
   client: TdlClient,
@@ -238,7 +247,8 @@ export async function scanChannelPrevious(
 
     let fromMessageId = 0;
     let hasMore = true;
-    let ipasSeen = 0; // counts ALL IPAs encountered (new + already processed)
+    let ipasSeen = 0; // counts only NEW (unprocessed) IPAs found
+    const collectedMessages: CollectedMessage[] = [];
 
     while (hasMore) {
       const fetchLimit = 100;
@@ -263,28 +273,27 @@ export async function scanChannelPrevious(
           msg.content?._ === "messageDocument" &&
           msg.content.document?.file_name?.toLowerCase().endsWith(".ipa");
 
-        // Count every IPA toward the target, even already-processed ones
-        if (hasIpa) ipasSeen++;
-
         // Skip disabled forum topics
         if (
           disabledTopicIds.size > 0 &&
           msg.message_thread_id &&
           disabledTopicIds.has(msg.message_thread_id)
         ) {
-          // Still mark as processed if not already
           const existing = await prisma.processedMessage.findUnique({
             where: { channelId_messageId: { channelId, messageId: msg.id } },
           });
           if (!existing) {
-            await prisma.processedMessage.create({
-              data: { channelId, messageId: msg.id, hasIpa: false, status: "skipped" },
+            collectedMessages.push({
+              channelId,
+              messageId: msg.id,
+              hasIpa: false,
+              status: "skipped",
             });
           }
           continue;
         }
 
-        // Check if already processed — skip but still counted IPA above
+        // Check if already processed — skip entirely
         const existing = await prisma.processedMessage.findUnique({
           where: { channelId_messageId: { channelId, messageId: msg.id } },
         });
@@ -294,24 +303,26 @@ export async function scanChannelPrevious(
 
         if (hasIpa) {
           ipaMessages++;
-          await prisma.processedMessage.create({
-            data: {
-              channelId,
-              messageId: msg.id,
-              hasIpa: true,
-              fileName: msg.content.document!.file_name!,
-              fileSize: BigInt(msg.content.document!.document?.size || 0),
-              messageText: msg.content.caption?.text || null,
-              status: "pending",
-            },
+          ipasSeen++; // Only count NEW IPAs toward the target
+          collectedMessages.push({
+            channelId,
+            messageId: msg.id,
+            hasIpa: true,
+            fileName: msg.content.document!.file_name!,
+            fileSize: BigInt(msg.content.document!.document?.size || 0),
+            messageText: msg.content.caption?.text || null,
+            status: "pending",
           });
         } else {
-          await prisma.processedMessage.create({
-            data: { channelId, messageId: msg.id, hasIpa: false, status: "skipped" },
+          collectedMessages.push({
+            channelId,
+            messageId: msg.id,
+            hasIpa: false,
+            status: "skipped",
           });
         }
 
-        // Stop once we've seen enough IPAs
+        // Stop once we've found enough NEW IPAs
         if (ipaTarget > 0 && ipasSeen >= ipaTarget) {
           hasMore = false;
           break;
@@ -322,6 +333,22 @@ export async function scanChannelPrevious(
       if (lastMsg) fromMessageId = lastMsg.id;
       if (messages.length < fetchLimit) hasMore = false;
       if (ipaTarget > 0 && ipasSeen >= ipaTarget) hasMore = false;
+    }
+
+    // Batch-write all collected messages to the database
+    if (collectedMessages.length > 0) {
+      await prisma.processedMessage.createMany({
+        data: collectedMessages.map((m) => ({
+          channelId: m.channelId,
+          messageId: m.messageId,
+          hasIpa: m.hasIpa,
+          fileName: m.fileName ?? null,
+          fileSize: m.fileSize ?? null,
+          messageText: m.messageText ?? null,
+          status: m.status,
+        })),
+        skipDuplicates: true,
+      });
     }
 
     await prisma.channelProgress.update({
