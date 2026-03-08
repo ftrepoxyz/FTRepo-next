@@ -1,5 +1,4 @@
 import { unlinkSync, existsSync } from "fs";
-import type { Client as TdlClient } from "tdl";
 import { prisma } from "../db";
 import { logger } from "../logger";
 import { extractIpa } from "../ipa/extractor";
@@ -8,7 +7,7 @@ import { getCachedLookup } from "../appstore/cache";
 import { uploadIpaToDailyRelease, deleteReleaseAsset } from "../github/releases";
 import { claimNextPending, markCompleted, markFailed } from "./queue";
 import { downloadIpaFromMessage } from "../telegram/downloader";
-import { getTelegramClient } from "../telegram/client";
+import { withTelegramClient } from "../telegram/client";
 import { getTelegramChannels, getSettings } from "../config";
 import { enforceVersionLimit } from "../github/cleanup";
 import { matchTweak } from "../ipa/tweak-matcher";
@@ -28,7 +27,6 @@ const globalForProcessing = globalThis as unknown as {
  * 7. Cleanup temp files
  */
 export async function processNextIpa(
-  client: TdlClient,
   chatIdMap: Map<string, number>
 ): Promise<boolean> {
   const entry = await claimNextPending();
@@ -42,36 +40,37 @@ export async function processNextIpa(
       data: { status: "processing" },
     });
 
-    // Step 1: Download from Telegram
-    let chatId = chatIdMap.get(entry.channelId);
-    if (!chatId) {
-      // Channel not in map — try to resolve on-the-fly (e.g. channel added after worker started)
-      try {
-        const chat = (await client.invoke({
-          _: "searchPublicChat",
-          username: entry.channelId.replace("@", ""),
-        })) as { _: string; id: number } | null;
-        if (chat && chat._ === "chat") {
-          chatId = chat.id;
-          chatIdMap.set(entry.channelId, chatId);
-          await logger.info("process", `Resolved channel ${entry.channelId} on-the-fly`);
-        }
-      } catch (e) {
-        await logger.warn("process", `Could not resolve channel ${entry.channelId}`, {
-          error: String(e),
-        });
-      }
-    }
-    if (!chatId) {
-      await markFailed(entry.id, `Unknown channel: ${entry.channelId}`);
-      return true;
-    }
-
     await logger.info("process", `Processing ${entry.fileName} from ${entry.channelId}`);
 
-    tempPath = await downloadIpaFromMessage(client, chatId, entry.messageId);
+    tempPath = await withTelegramClient(async (client) => {
+      let chatId = chatIdMap.get(entry.channelId);
+      if (!chatId) {
+        try {
+          const chat = (await client.invoke({
+            _: "searchPublicChat",
+            username: entry.channelId.replace("@", ""),
+          })) as { _: string; id: number } | null;
+          if (chat && chat._ === "chat") {
+            chatId = chat.id;
+            chatIdMap.set(entry.channelId, chatId);
+            await logger.info("process", `Resolved channel ${entry.channelId} on-the-fly`);
+          }
+        } catch (e) {
+          await logger.warn("process", `Could not resolve channel ${entry.channelId}`, {
+            error: String(e),
+          });
+        }
+      }
+
+      if (!chatId) {
+        return null;
+      }
+
+      return downloadIpaFromMessage(client, chatId, entry.messageId);
+    });
+
     if (!tempPath) {
-      await markFailed(entry.id, "Download returned no file");
+      await markFailed(entry.id, `Unknown channel or missing file: ${entry.channelId}`);
       return true;
     }
 
@@ -213,31 +212,31 @@ export async function startProcessing(): Promise<void> {
   globalForProcessing.queueProcessing = true;
 
   try {
-    const client = await getTelegramClient();
     const channels = await getTelegramChannels();
 
-    // Build channel → TDLib chat ID map
     const chatIdMap = new Map<string, number>();
-    for (const channelId of channels) {
-      try {
-        const chat = (await client.invoke({
-          _: "searchPublicChat",
-          username: channelId.replace("@", ""),
-        })) as { _: string; id: number } | null;
-        if (chat && chat._ === "chat") {
-          chatIdMap.set(channelId, chat.id);
+    await withTelegramClient(async (client) => {
+      for (const channelId of channels) {
+        try {
+          const chat = (await client.invoke({
+            _: "searchPublicChat",
+            username: channelId.replace("@", ""),
+          })) as { _: string; id: number } | null;
+          if (chat && chat._ === "chat") {
+            chatIdMap.set(channelId, chat.id);
+          }
+        } catch (e) {
+          await logger.warn("process", `Could not resolve channel ${channelId}`, {
+            error: String(e),
+          });
         }
-      } catch (e) {
-        await logger.warn("process", `Could not resolve channel ${channelId}`, {
-          error: String(e),
-        });
       }
-    }
+    });
 
     await logger.info("process", `Queue processor started, ${chatIdMap.size} channel(s) pre-resolved`);
 
     // Process until queue is empty
-    while (await processNextIpa(client, chatIdMap)) {
+    while (await processNextIpa(chatIdMap)) {
       // Brief pause between items to avoid overwhelming resources
       await new Promise((r) => setTimeout(r, 2000));
     }

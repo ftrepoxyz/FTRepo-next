@@ -1,4 +1,4 @@
-import { getTelegramClient, closeTelegramClient } from "../src/lib/telegram/client";
+import { withTelegramClient } from "../src/lib/telegram/client";
 import { scanChannel } from "../src/lib/telegram/scanner";
 import { processNextIpa } from "../src/lib/pipeline/orchestrator";
 import { generateAllJson } from "../src/lib/json/generator";
@@ -8,7 +8,6 @@ import { cleanupCaches } from "../src/lib/cleanup/cache";
 import { scheduleTask, stopAllTasks } from "../src/lib/pipeline/scheduler";
 import { getTelegramChannels, getSettings } from "../src/lib/config";
 import { logger } from "../src/lib/logger";
-import type { Client as TdlClient } from "tdl";
 
 let running = true;
 
@@ -22,33 +21,36 @@ async function main() {
     await logger.warn("system", "No Telegram channels configured. Worker will idle.");
   }
 
-  // Initialize Telegram client — if the session is valid it will reconnect
-  // automatically. If it needs 2FA or a verification code the user must
-  // complete the flow from the Settings UI; retrying here won't help.
-  let client: TdlClient;
-  try {
-    client = await getTelegramClient();
-  } catch (e) {
-    await logger.error("system", "Telegram client not ready — complete auth in Settings → Integrations", {
-      error: String(e),
-    });
-    process.exit(1);
-  }
-
-  // Resolve channel IDs
   const chatIdMap = new Map<string, number>();
-  for (const channel of channels) {
-    try {
-      const chat = (await client.invoke({
-        _: "searchPublicChat",
-        username: channel.replace("@", ""),
-      })) as { id: number };
-      chatIdMap.set(channel, chat.id);
-    } catch (e) {
-      await logger.warn("system", `Could not resolve channel: ${channel}`, {
+
+  const primeChatIds = async (channelList: string[]) => {
+    await withTelegramClient(async (client) => {
+      for (const channel of channelList) {
+        try {
+          const chat = (await client.invoke({
+            _: "searchPublicChat",
+            username: channel.replace("@", ""),
+          })) as { id: number };
+          chatIdMap.set(channel, chat.id);
+        } catch (e) {
+          await logger.warn("system", `Could not resolve channel: ${channel}`, {
+            error: String(e),
+          });
+        }
+      }
+    });
+  };
+
+  try {
+    await primeChatIds(channels);
+  } catch (e) {
+    await logger.error(
+      "system",
+      "Telegram session not ready — complete auth in Settings -> Integrations",
+      {
         error: String(e),
-      });
-    }
+      }
+    );
   }
 
   // Schedule recurring tasks
@@ -57,20 +59,27 @@ async function main() {
     async () => {
       // Refresh channel list each scan cycle to pick up newly added channels
       const currentChannels = await getTelegramChannels();
-      for (const channel of currentChannels) {
-        await scanChannel(client, channel, settings.scan_message_limit);
-        // Ensure newly scanned channels are in the chatIdMap
-        if (!chatIdMap.has(channel)) {
-          try {
-            const chat = (await client.invoke({
-              _: "searchPublicChat",
-              username: channel.replace("@", ""),
-            })) as { id: number };
-            chatIdMap.set(channel, chat.id);
-          } catch {
-            // Will be resolved on-the-fly during processing
+      try {
+        await withTelegramClient(async (client) => {
+          for (const channel of currentChannels) {
+            await scanChannel(client, channel, settings.scan_message_limit);
+            if (!chatIdMap.has(channel)) {
+              try {
+                const chat = (await client.invoke({
+                  _: "searchPublicChat",
+                  username: channel.replace("@", ""),
+                })) as { id: number };
+                chatIdMap.set(channel, chat.id);
+              } catch {
+                // Will be resolved on-the-fly during processing.
+              }
+            }
           }
-        }
+        });
+      } catch (e) {
+        await logger.warn("system", "Scheduled scan skipped because Telegram is unavailable", {
+          error: String(e),
+        });
       }
     },
     settings.scan_interval_minutes
@@ -96,8 +105,16 @@ async function main() {
 
   // Run initial scan
   await logger.info("system", "Running initial channel scan...");
-  for (const channel of channels) {
-    await scanChannel(client, channel, settings.scan_message_limit);
+  try {
+    await withTelegramClient(async (client) => {
+      for (const channel of channels) {
+        await scanChannel(client, channel, settings.scan_message_limit);
+      }
+    });
+  } catch (e) {
+    await logger.warn("system", "Initial channel scan skipped because Telegram is unavailable", {
+      error: String(e),
+    });
   }
 
   // Main processing loop
@@ -110,7 +127,7 @@ async function main() {
         await new Promise((resolve) => setTimeout(resolve, 5000));
         continue;
       }
-      const processed = await processNextIpa(client, chatIdMap);
+      const processed = await processNextIpa(chatIdMap);
       if (!processed) {
         // No items in queue - wait before checking again
         await new Promise((resolve) => setTimeout(resolve, 5000));
@@ -129,7 +146,6 @@ async function shutdown(signal: string) {
   await logger.info("system", `Received ${signal}, shutting down gracefully...`);
   running = false;
   stopAllTasks();
-  await closeTelegramClient();
   process.exit(0);
 }
 

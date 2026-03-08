@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { logger } from "@/lib/logger";
 import { withAuth } from "@/lib/auth";
-import { getTelegramClient } from "@/lib/telegram/client";
+import { withTelegramClient } from "@/lib/telegram/client";
 import { getTelegramChannels, getSettings } from "@/lib/config";
 import { scanChannelPrevious } from "@/lib/telegram/scanner";
 import { startProcessing } from "@/lib/pipeline/orchestrator";
@@ -10,7 +10,6 @@ export const POST = withAuth(async () => {
   try {
     await logger.info("scan", "Scan Previous triggered via API");
 
-    const client = await getTelegramClient();
     const channels = await getTelegramChannels();
     const settings = await getSettings();
 
@@ -24,15 +23,17 @@ export const POST = withAuth(async () => {
     let totalNew = 0;
     let totalIpa = 0;
 
-    for (const channelId of channels) {
-      const { newMessages, ipaMessages } = await scanChannelPrevious(
-        client,
-        channelId,
-        settings.previous_ipa_scan_amount
-      );
-      totalNew += newMessages;
-      totalIpa += ipaMessages;
-    }
+    await withTelegramClient(async (client) => {
+      for (const channelId of channels) {
+        const { newMessages, ipaMessages } = await scanChannelPrevious(
+          client,
+          channelId,
+          settings.previous_ipa_scan_amount
+        );
+        totalNew += newMessages;
+        totalIpa += ipaMessages;
+      }
+    });
 
     await logger.success(
       "scan",

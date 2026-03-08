@@ -50,7 +50,7 @@ export async function scanChannel(
     }
 
     // Update channel name, description, and forum topics from Telegram
-    await resolveChannelInfo(channelId);
+    await resolveChannelInfo(channelId, client);
 
     // Reload progress to get updated forum topic data
     progress = await prisma.channelProgress.findUnique({
@@ -231,7 +231,7 @@ export async function scanChannelPrevious(
       return { newMessages: 0, ipaMessages: 0 };
     }
 
-    await resolveChannelInfo(channelId);
+    await resolveChannelInfo(channelId, client);
 
     progress = await prisma.channelProgress.findUnique({
       where: { channelId },

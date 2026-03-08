@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../db";
-import { getTelegramClient } from "./client";
+import type { Client as TdlClient } from "tdl";
+import { withTelegramClient } from "./client";
 import { fetchForumTopics, mergeTopics, parseForumTopics } from "./forum-topics";
 
 /**
@@ -8,16 +9,12 @@ import { fetchForumTopics, mergeTopics, parseForumTopics } from "./forum-topics"
  * Also detects forum channels and fetches/merges forum topics.
  * Best-effort — silently returns if Telegram isn't connected.
  */
-export async function resolveChannelInfo(channelId: string): Promise<void> {
-  let client;
-  try {
-    client = await getTelegramClient();
-  } catch {
-    return; // Telegram not connected
-  }
-
-  try {
-    const chat = await client.invoke({
+export async function resolveChannelInfo(
+  channelId: string,
+  client?: TdlClient
+): Promise<void> {
+  const resolveWithClient = async (telegramClient: TdlClient) => {
+    const chat = await telegramClient.invoke({
       _: "searchPublicChat",
       username: channelId.replace("@", ""),
     });
@@ -38,15 +35,14 @@ export async function resolveChannelInfo(channelId: string): Promise<void> {
       if (chatType.type?._ === "chatTypeSupergroup" && chatType.type.supergroup_id) {
         const supergroupId = chatType.type.supergroup_id;
 
-        const fullInfo = await client.invoke({
+        const fullInfo = await telegramClient.invoke({
           _: "getSupergroupFullInfo",
           supergroup_id: supergroupId,
         });
         const desc = (fullInfo as { description?: string }).description;
         if (desc) updateData.channelDescription = desc;
 
-        // Check if this is a forum supergroup
-        const supergroup = (await client.invoke({
+        const supergroup = (await telegramClient.invoke({
           _: "getSupergroup",
           supergroup_id: supergroupId,
         })) as { is_forum?: boolean };
@@ -57,21 +53,21 @@ export async function resolveChannelInfo(channelId: string): Promise<void> {
         if (isForum) {
           const chatId = (chat as { id?: number }).id;
           if (chatId) {
-            const fetched = await fetchForumTopics(client, chatId);
-            // Merge with existing topics to preserve user's enabled/disabled choices
+            const fetched = await fetchForumTopics(telegramClient, chatId);
             const existing = await prisma.channelProgress.findUnique({
               where: { channelId },
               select: { forumTopics: true },
             });
             const existingTopics = parseForumTopics(existing?.forumTopics);
-            updateData.forumTopics = mergeTopics(existingTopics, fetched) as unknown as Prisma.InputJsonValue;
+            updateData.forumTopics =
+              mergeTopics(existingTopics, fetched) as unknown as Prisma.InputJsonValue;
           }
         } else {
           updateData.forumTopics = Prisma.JsonNull;
         }
       }
     } catch {
-      // Description/forum fetch is best-effort
+      // Description/forum fetch is best-effort.
     }
 
     if (Object.keys(updateData).length > 0) {
@@ -80,7 +76,15 @@ export async function resolveChannelInfo(channelId: string): Promise<void> {
         data: updateData,
       });
     }
+  };
+
+  try {
+    if (client) {
+      await resolveWithClient(client);
+      return;
+    }
+    await withTelegramClient(resolveWithClient);
   } catch {
-    // Channel resolution is best-effort
+    // Channel resolution is best-effort.
   }
 }
