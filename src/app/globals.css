@@ -143,13 +143,7 @@
 
 .hp-reveal {
   opacity: 0;
-  transform: translateY(16px);
-  transition: opacity 0.5s cubic-bezier(0.25, 1, 0.5, 1),
-              transform 0.5s cubic-bezier(0.25, 1, 0.5, 1);
-}
-.hp-reveal.is-visible {
-  opacity: 1;
-  transform: none;
+  animation: hp-fade-up 0.6s cubic-bezier(0.25, 1, 0.5, 1) forwards;
 }
 
 /* Stagger extensions for children 6-7 */
@@ -245,4 +239,18 @@
 .hp-carousel-item.hp-entering {
   opacity: 0;
   animation: hp-pop-in 0.4s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hp-stagger > *,
+  .hp-reveal,
+  .hp-float,
+  .hp-carousel-left,
+  .hp-carousel-right,
+  .hp-shiny-card::after,
+  .hp-carousel-item.hp-entering {
+    animation: none !important;
+    opacity: 1;
+    transform: none !important;
+  }
 }

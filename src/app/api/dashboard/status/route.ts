@@ -10,7 +10,6 @@ export async function GET() {
       totalDownloads,
       activeChannels,
       pendingQueue,
-      lastActivity,
     ] = await Promise.all([
       prisma.downloadedIpa.count(),
       prisma.downloadedIpa.aggregate({ _sum: { downloadCount: true } }),
@@ -18,7 +17,6 @@ export async function GET() {
       prisma.processedMessage.count({
         where: { status: "pending", hasIpa: true },
       }),
-      prisma.activityLog.findFirst({ orderBy: { createdAt: "desc" } }),
     ]);
 
     // Calculate storage used

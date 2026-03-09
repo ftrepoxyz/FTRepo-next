@@ -339,7 +339,7 @@ export function SettingsPanel() {
 
   const loadTelegramAuth = useCallback(async () => {
     try {
-      const res = await fetch("/api/auth/telegram");
+      const res = await fetch("/api/auth/telegram", { cache: "no-store" });
       const data = await res.json();
       if (data.success) {
         setTelegramAuth({
@@ -379,7 +379,7 @@ export function SettingsPanel() {
       const [settingsRes, channelsRes, meRes] = await Promise.all([
         fetch("/api/settings"),
         fetch("/api/channels"),
-        fetch("/api/auth/me"),
+        fetch("/api/auth/me", { cache: "no-store" }),
       ]);
       const settingsData = await settingsRes.json();
       const channelsData = await channelsRes.json();
@@ -579,6 +579,7 @@ export function SettingsPanel() {
     try {
       const res = await fetch("/api/auth/telegram", {
         method: "POST",
+        cache: "no-store",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action, ...body }),
       });

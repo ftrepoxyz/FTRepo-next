@@ -1,12 +1,11 @@
-import { NextResponse } from "next/server";
-import { withAuth } from "@/lib/auth";
+import { withAuth, jsonNoStore } from "@/lib/auth";
 import {
   getTelegramAuthStatus,
   enqueueTelegramCommand,
 } from "@/lib/telegram/client";
 
 export const GET = withAuth(async () => {
-  return NextResponse.json({ success: true, ...(await getTelegramAuthStatus()) });
+  return jsonNoStore({ success: true, ...(await getTelegramAuthStatus()) });
 });
 
 export const POST = withAuth(async (request, user) => {
@@ -29,7 +28,7 @@ export const POST = withAuth(async (request, user) => {
           currentStatus.state === "waiting_code" ||
           currentStatus.state === "waiting_password"
         ) {
-          return NextResponse.json(
+          return jsonNoStore(
             {
               success: false,
               accepted: false,
@@ -43,12 +42,12 @@ export const POST = withAuth(async (request, user) => {
         break;
       case "code":
         if (!code)
-          return NextResponse.json(
+          return jsonNoStore(
             { success: false, error: "Code is required" },
             { status: 400 }
           );
         if (currentStatus.state !== "waiting_code") {
-          return NextResponse.json(
+          return jsonNoStore(
             {
               success: false,
               accepted: false,
@@ -63,12 +62,12 @@ export const POST = withAuth(async (request, user) => {
         break;
       case "password":
         if (!password)
-          return NextResponse.json(
+          return jsonNoStore(
             { success: false, error: "Password is required" },
             { status: 400 }
           );
         if (currentStatus.state !== "waiting_password") {
-          return NextResponse.json(
+          return jsonNoStore(
             {
               success: false,
               accepted: false,
@@ -88,7 +87,7 @@ export const POST = withAuth(async (request, user) => {
         type = "reset_session";
         break;
       default:
-        return NextResponse.json(
+        return jsonNoStore(
           { success: false, error: "Invalid action" },
           { status: 400 }
         );
@@ -101,7 +100,7 @@ export const POST = withAuth(async (request, user) => {
     });
     const status = await getTelegramAuthStatus();
 
-    return NextResponse.json(
+    return jsonNoStore(
       {
         success: true,
         accepted: true,
@@ -113,7 +112,7 @@ export const POST = withAuth(async (request, user) => {
     );
   } catch (e) {
     const status = await getTelegramAuthStatus();
-    return NextResponse.json(
+    return jsonNoStore(
       { success: false, accepted: false, ...status, error: String(e) },
       { status: 500 }
     );

@@ -1,12 +1,11 @@
-import { NextResponse } from "next/server";
-import { deleteSession } from "@/lib/auth";
+import { deleteSession, jsonNoStore } from "@/lib/auth";
 
 export async function POST() {
   try {
     await deleteSession();
-    return NextResponse.json({ success: true });
+    return jsonNoStore({ success: true });
   } catch (e) {
-    return NextResponse.json(
+    return jsonNoStore(
       { error: String(e) },
       { status: 500 }
     );

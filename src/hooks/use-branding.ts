@@ -42,7 +42,6 @@ export function useBranding(): Branding {
 
   useEffect(() => {
     if (cachedBranding) {
-      setBranding(cachedBranding);
       return;
     }
     fetchBranding().then(setBranding);

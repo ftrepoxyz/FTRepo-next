@@ -1,18 +1,13 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { getSettingsOrDefaults } from "@/lib/config";
 
 export async function handleJsonRedirect(format: string) {
   try {
-    const rows = await prisma.setting.findMany({
-      where: {
-        key: { in: ["github_owner", "github_repo", "github_branch"] },
-      },
-    });
-    const map = Object.fromEntries(rows.map((r) => [r.key, r.value]));
+    const settings = await getSettingsOrDefaults();
 
-    const owner = map.github_owner || process.env.GITHUB_OWNER || "";
-    const repo = map.github_repo || process.env.GITHUB_REPO || "";
-    const branch = map.github_branch || process.env.GITHUB_BRANCH || "main";
+    const owner = settings.github_owner || process.env.GITHUB_OWNER || "";
+    const repo = settings.github_repo || process.env.GITHUB_REPO || "";
+    const branch = settings.github_branch || process.env.GITHUB_BRANCH || "main";
 
     if (!owner || !repo) {
       return NextResponse.json(

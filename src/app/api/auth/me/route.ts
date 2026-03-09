@@ -1,15 +1,14 @@
-import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, jsonNoStore } from "@/lib/auth";
 
 export async function GET() {
   try {
-    const user = await getCurrentUser();
+    const user = await getCurrentUser({ clearInvalidCookie: true });
 
     if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return jsonNoStore({ error: "Unauthorized" }, { status: 401 });
     }
 
-    return NextResponse.json({
+    return jsonNoStore({
       success: true,
       user: {
         id: user.id,
@@ -19,7 +18,7 @@ export async function GET() {
       },
     });
   } catch (e) {
-    return NextResponse.json(
+    return jsonNoStore(
       { error: String(e) },
       { status: 500 }
     );

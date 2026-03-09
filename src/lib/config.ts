@@ -32,11 +32,51 @@ const SETTINGS_DEFAULTS: Record<string, string> = {
   system_enabled: "true",
 };
 
+export const DEFAULT_APP_SETTINGS: AppSettings = {
+  telegram_api_id: "",
+  telegram_api_hash: "",
+  telegram_phone: "",
+  github_token: "",
+  github_owner: "",
+  github_repo: "",
+  github_branch: "main",
+  appstore_country: "us",
+  scan_interval_minutes: 30,
+  json_regen_interval_minutes: 60,
+  cleanup_interval_hours: 24,
+  max_versions_per_app: 5,
+  temp_dir: "/tmp/ftrepo",
+  log_retention_days: 30,
+  scan_message_limit: 500,
+  previous_ipa_scan_amount: 50,
+  known_tweaks: DEFAULT_KNOWN_TWEAKS,
+  source_name: "FTRepo",
+  source_description: "Automated iOS IPA distribution",
+  source_subtitle: "iOS App Repository",
+  source_icon_url: "",
+  source_tint_color: "#5C7AEA",
+  site_domain: "",
+  system_enabled: true,
+};
+
 let cachedSettings: AppSettings | null = null;
 let cacheTimestamp = 0;
 const CACHE_TTL_MS = 60_000; // 60 seconds
+let cachedResolvedSettings: AppSettings | null = null;
+let resolvedCacheTimestamp = 0;
+
+function cloneDefaultSettings(): AppSettings {
+  return {
+    ...DEFAULT_APP_SETTINGS,
+    known_tweaks: [...DEFAULT_APP_SETTINGS.known_tweaks],
+  };
+}
 
 export async function getSettings(): Promise<AppSettings> {
+  if (process.env.NEXT_PHASE === "phase-production-build") {
+    return cloneDefaultSettings();
+  }
+
   const now = Date.now();
   if (cachedSettings && now - cacheTimestamp < CACHE_TTL_MS) {
     return cachedSettings;
@@ -127,6 +167,30 @@ export async function getSettings(): Promise<AppSettings> {
 export function invalidateSettingsCache(): void {
   cachedSettings = null;
   cacheTimestamp = 0;
+  cachedResolvedSettings = null;
+  resolvedCacheTimestamp = 0;
+}
+
+export async function getSettingsOrDefaults(): Promise<AppSettings> {
+  const now = Date.now();
+  if (
+    cachedResolvedSettings &&
+    now - resolvedCacheTimestamp < CACHE_TTL_MS
+  ) {
+    return cachedResolvedSettings;
+  }
+
+  try {
+    const settings = await getSettings();
+    cachedResolvedSettings = settings;
+    resolvedCacheTimestamp = now;
+    return settings;
+  } catch {
+    const fallback = cloneDefaultSettings();
+    cachedResolvedSettings = fallback;
+    resolvedCacheTimestamp = now;
+    return fallback;
+  }
 }
 
 // --- Telegram channels from ChannelProgress table ---

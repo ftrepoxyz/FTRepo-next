@@ -22,7 +22,11 @@ const DEFAULT_TELEGRAM_STATUS: TelegramStatusSnapshot = {
   workerOnline: false,
 };
 
-export function Header() {
+interface HeaderProps {
+  username: string;
+}
+
+export function Header({ username }: HeaderProps) {
   const { setOpen } = useMobileSidebar();
   const { enabled: systemEnabled } = useSystemStatus();
   const [dark, setDark] = useState(() => {
@@ -31,22 +35,14 @@ export function Header() {
     }
     return document.documentElement.classList.contains("dark");
   });
-  const [username, setUsername] = useState<string | null>(null);
   const [telegramStatus, setTelegramStatus] = useState<TelegramStatusSnapshot | null>(null);
-
-  useEffect(() => {
-    fetch("/api/auth/me")
-      .then((r) => r.json())
-      .then((d) => { if (d.success) setUsername(d.user.username); })
-      .catch(() => {});
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
 
     const loadTelegramStatus = async () => {
       try {
-        const res = await fetch("/api/auth/telegram");
+        const res = await fetch("/api/auth/telegram", { cache: "no-store" });
         const data = await res.json();
         if (!cancelled && data.success) {
           setTelegramStatus({
@@ -76,7 +72,10 @@ export function Header() {
   };
 
   const handleLogout = async () => {
-    await fetch("/api/auth/logout", { method: "POST" });
+    await fetch("/api/auth/logout", {
+      method: "POST",
+      cache: "no-store",
+    });
     window.location.href = "/login";
   };
 
@@ -151,14 +150,10 @@ export function Header() {
             <Moon className="h-4 w-4" />
           )}
         </Button>
-        {username && (
-          <>
-            <span className="hidden text-sm text-muted-foreground sm:inline">{username}</span>
-            <Button variant="ghost" size="icon" onClick={handleLogout} title="Log out">
-              <LogOut className="h-4 w-4" />
-            </Button>
-          </>
-        )}
+        <span className="hidden text-sm text-muted-foreground sm:inline">{username}</span>
+        <Button variant="ghost" size="icon" onClick={handleLogout} title="Log out">
+          <LogOut className="h-4 w-4" />
+        </Button>
       </div>
     </header>
   );
