@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { logger } from "@/lib/logger";
 import { withAuth } from "@/lib/auth";
-import { startProcessing } from "@/lib/pipeline/orchestrator";
 import { getQueueStats } from "@/lib/pipeline/queue";
+import { enqueueTelegramCommand } from "@/lib/telegram/client";
 
-export const POST = withAuth(async () => {
+export const POST = withAuth(async (_request, user) => {
   try {
     const stats = await getQueueStats();
 
@@ -17,16 +17,23 @@ export const POST = withAuth(async () => {
 
     await logger.info("process", `Manual process triggered — ${stats.pending} pending item(s)`);
 
-    startProcessing().catch((e) =>
-      logger.error("process", "Background processing failed", {
-        error: String(e),
-      })
-    );
-
-    return NextResponse.json({
-      success: true,
-      message: `Processing ${stats.pending} pending item(s). Check activity log for progress.`,
+    const { command, created } = await enqueueTelegramCommand({
+      type: "process_queue",
+      requestedByUserId: user.id,
     });
+
+    return NextResponse.json(
+      {
+        success: true,
+        accepted: true,
+        created,
+        commandId: command.id,
+        message: created
+          ? `Processing ${stats.pending} pending item(s).`
+          : "Queue processing is already queued or running.",
+      },
+      { status: 202 }
+    );
   } catch (e) {
     return NextResponse.json(
       { success: false, error: String(e) },

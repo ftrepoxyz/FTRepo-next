@@ -1,17 +1,14 @@
 import { NextResponse } from "next/server";
 import { logger } from "@/lib/logger";
 import { withAuth } from "@/lib/auth";
-import { withTelegramClient } from "@/lib/telegram/client";
-import { getTelegramChannels, getSettings } from "@/lib/config";
-import { scanChannel } from "@/lib/telegram/scanner";
-import { startProcessing } from "@/lib/pipeline/orchestrator";
+import { enqueueTelegramCommand } from "@/lib/telegram/client";
+import { getTelegramChannels } from "@/lib/config";
 
-export const POST = withAuth(async () => {
+export const POST = withAuth(async (_request, user) => {
   try {
     await logger.info("scan", "Manual scan triggered via API");
 
     const channels = await getTelegramChannels();
-    const settings = await getSettings();
 
     if (channels.length === 0) {
       return NextResponse.json({
@@ -20,38 +17,23 @@ export const POST = withAuth(async () => {
       });
     }
 
-    let totalNew = 0;
-    let totalIpa = 0;
-
-    await withTelegramClient(async (client) => {
-      for (const channelId of channels) {
-        const { newMessages, ipaMessages } = await scanChannel(
-          client,
-          channelId,
-          settings.scan_message_limit
-        );
-        totalNew += newMessages;
-        totalIpa += ipaMessages;
-      }
+    const { command, created } = await enqueueTelegramCommand({
+      type: "scan_now",
+      requestedByUserId: user.id,
     });
 
-    await logger.success(
-      "scan",
-      `Scan complete: ${totalNew} new messages, ${totalIpa} IPAs queued across ${channels.length} channel(s)`
+    return NextResponse.json(
+      {
+        success: true,
+        accepted: true,
+        created,
+        commandId: command.id,
+        message: created
+          ? `Scan queued across ${channels.length} channel(s).`
+          : "A scan is already queued or running.",
+      },
+      { status: 202 }
     );
-
-    // Start processing pending items in the background (fire-and-forget)
-    startProcessing().catch((e) =>
-      logger.error("process", "Background processing failed", {
-        error: String(e),
-      })
-    );
-
-    return NextResponse.json({
-      success: true,
-      message: `Scan complete: ${totalNew} new messages, ${totalIpa} IPAs queued. Processing started.`,
-      data: { newMessages: totalNew, ipaMessages: totalIpa, channelsScanned: channels.length },
-    });
   } catch (e) {
     await logger.error("scan", "Manual scan failed", { error: String(e) });
     return NextResponse.json(

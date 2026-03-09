@@ -1,20 +1,38 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Moon, Sun, LogOut, Menu } from "lucide-react";
 import { useMobileSidebar } from "@/hooks/use-mobile-sidebar";
 import { useSystemStatus } from "@/hooks/use-system-status";
+import type { TelegramStatusSnapshot } from "@/types/config";
 
-type TelegramState = "disconnected" | "connecting" | "waiting_code" | "waiting_password" | "ready" | "error" | null;
+const DEFAULT_TELEGRAM_STATUS: TelegramStatusSnapshot = {
+  state: "disconnected",
+  error: null,
+  passwordHint: "",
+  busy: false,
+  sessionReady: false,
+  currentCommandId: null,
+  retryCount: 0,
+  lastHeartbeatAt: null,
+  lastConnectedAt: null,
+  lastAuthAt: null,
+  workerOnline: false,
+};
 
 export function Header() {
   const { setOpen } = useMobileSidebar();
   const { enabled: systemEnabled } = useSystemStatus();
-  const [dark, setDark] = useState(false);
+  const [dark, setDark] = useState(() => {
+    if (typeof document === "undefined") {
+      return false;
+    }
+    return document.documentElement.classList.contains("dark");
+  });
   const [username, setUsername] = useState<string | null>(null);
-  const [telegramState, setTelegramState] = useState<TelegramState>(null);
+  const [telegramStatus, setTelegramStatus] = useState<TelegramStatusSnapshot | null>(null);
 
   useEffect(() => {
     fetch("/api/auth/me")
@@ -23,25 +41,33 @@ export function Header() {
       .catch(() => {});
   }, []);
 
-  const fetchTelegramStatus = useCallback(async () => {
-    try {
-      const res = await fetch("/api/auth/telegram");
-      const data = await res.json();
-      if (data.success) setTelegramState(data.state);
-    } catch {
-      // ignore — user may not be authed yet
-    }
-  }, []);
-
   useEffect(() => {
-    fetchTelegramStatus();
-    const interval = setInterval(fetchTelegramStatus, 10_000);
-    return () => clearInterval(interval);
-  }, [fetchTelegramStatus]);
+    let cancelled = false;
 
-  useEffect(() => {
-    const isDark = document.documentElement.classList.contains("dark");
-    setDark(isDark);
+    const loadTelegramStatus = async () => {
+      try {
+        const res = await fetch("/api/auth/telegram");
+        const data = await res.json();
+        if (!cancelled && data.success) {
+          setTelegramStatus({
+            ...DEFAULT_TELEGRAM_STATUS,
+            ...data,
+          });
+        }
+      } catch {
+        // ignore — user may not be authed yet
+      }
+    };
+
+    void loadTelegramStatus();
+    const interval = setInterval(() => {
+      void loadTelegramStatus();
+    }, 10_000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
   }, []);
 
   const toggleDark = () => {
@@ -65,20 +91,37 @@ export function Header() {
         >
           <Menu className="h-5 w-5" />
         </Button>
-        {telegramState !== null && telegramState !== "ready" ? (
+        {telegramStatus && (!telegramStatus.workerOnline || telegramStatus.state !== "ready") ? (
           <Badge
             variant="outline"
-            className="border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400 text-xs"
+            className={
+              telegramStatus.workerOnline
+                ? "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400 text-xs"
+                : "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400 text-xs"
+            }
           >
             <span className="relative mr-1.5 flex h-2 w-2">
-              {telegramState === "connecting" && (
+              {telegramStatus.workerOnline &&
+                telegramStatus.state === "connecting" && (
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
               )}
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-500" />
+              <span
+                className={`relative inline-flex h-2 w-2 rounded-full ${
+                  telegramStatus.workerOnline ? "bg-amber-500" : "bg-red-500"
+                }`}
+              />
             </span>
-            {telegramState === "connecting"
-              ? "Telegram Connecting"
-              : "Telegram Disconnected"}
+            {!telegramStatus.workerOnline
+              ? "Telegram Worker Offline"
+              : telegramStatus.state === "connecting"
+                ? "Telegram Connecting"
+                : telegramStatus.state === "waiting_code"
+                  ? "Telegram Awaiting Code"
+                  : telegramStatus.state === "waiting_password"
+                    ? "Telegram Awaiting 2FA"
+                    : telegramStatus.state === "error"
+                      ? "Telegram Error"
+                      : "Telegram Disconnected"}
           </Badge>
         ) : (
           <Badge

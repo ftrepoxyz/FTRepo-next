@@ -48,7 +48,7 @@ export interface ScarletApp {
   };
 }
 
-export interface FeatherApp extends AltStoreApp {}
+export type FeatherApp = AltStoreApp;
 
 export interface TweakConfig {
   name: string;
@@ -81,4 +81,43 @@ export interface AppSettings {
   source_tint_color: string;
   site_domain: string;
   system_enabled: boolean;
+}
+
+export type TelegramAuthState =
+  | "disconnected"
+  | "connecting"
+  | "waiting_code"
+  | "waiting_password"
+  | "ready"
+  | "error";
+
+export type TelegramCommandType =
+  | "connect"
+  | "submit_code"
+  | "submit_password"
+  | "disconnect"
+  | "reset_session"
+  | "scan_now"
+  | "scan_previous"
+  | "refresh_topics"
+  | "process_queue";
+
+export type TelegramCommandStatus =
+  | "pending"
+  | "running"
+  | "completed"
+  | "failed";
+
+export interface TelegramStatusSnapshot {
+  state: TelegramAuthState;
+  error: string | null;
+  passwordHint: string;
+  busy: boolean;
+  sessionReady: boolean;
+  currentCommandId: number | null;
+  retryCount: number;
+  lastHeartbeatAt: string | null;
+  lastConnectedAt: string | null;
+  lastAuthAt: string | null;
+  workerOnline: boolean;
 }

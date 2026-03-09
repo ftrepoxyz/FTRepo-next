@@ -75,6 +75,21 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { UsersTab } from "@/components/settings/users-tab";
+import type { TelegramStatusSnapshot } from "@/types/config";
+
+const DEFAULT_TELEGRAM_AUTH: TelegramStatusSnapshot = {
+  state: "disconnected",
+  error: null,
+  passwordHint: "",
+  busy: false,
+  sessionReady: false,
+  currentCommandId: null,
+  retryCount: 0,
+  lastHeartbeatAt: null,
+  lastConnectedAt: null,
+  lastAuthAt: null,
+  workerOnline: false,
+};
 
 function UnsavedBanner({
   show,
@@ -252,11 +267,8 @@ export function SettingsPanel() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [currentUser, setCurrentUser] = useState<{ role: string } | null>(null);
-  const [telegramAuth, setTelegramAuth] = useState<{
-    state: string;
-    error: string | null;
-    passwordHint: string;
-  }>({ state: "disconnected", error: null, passwordHint: "" });
+  const [telegramAuth, setTelegramAuth] =
+    useState<TelegramStatusSnapshot>(DEFAULT_TELEGRAM_AUTH);
   const [authCode, setAuthCode] = useState("");
   const [authPassword, setAuthPassword] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
@@ -331,15 +343,36 @@ export function SettingsPanel() {
       const data = await res.json();
       if (data.success) {
         setTelegramAuth({
-          state: data.state,
-          error: data.error,
-          passwordHint: data.passwordHint,
+          ...DEFAULT_TELEGRAM_AUTH,
+          ...data,
         });
       }
     } catch {
       // ignore
     }
   }, []);
+
+  useEffect(() => {
+    loadTelegramAuth();
+    const intervalMs =
+      activeTab === "integrations" ||
+      activeTab === "actions" ||
+      telegramAuth.state === "connecting" ||
+      telegramAuth.state === "waiting_code" ||
+      telegramAuth.state === "waiting_password" ||
+      telegramAuth.state === "error" ||
+      !telegramAuth.workerOnline
+        ? 3_000
+        : 10_000;
+
+    const interval = setInterval(loadTelegramAuth, intervalMs);
+    return () => clearInterval(interval);
+  }, [
+    activeTab,
+    loadTelegramAuth,
+    telegramAuth.state,
+    telegramAuth.workerOnline,
+  ]);
 
   const loadData = useCallback(async () => {
     try {
@@ -413,13 +446,9 @@ export function SettingsPanel() {
       });
       const data = await res.json();
       if (data.success) {
-        const update = (ch: Channel) =>
-          ch.channelId === channelId
-            ? { ...ch, isForum: data.data.isForum, forumTopics: data.data.forumTopics }
-            : ch;
-        setChannels((prev) => prev.map(update));
-        setSavedChannels((prev) => prev.map(update));
-        toast.success("Topics refreshed");
+        toast.success(
+          data.created ? "Topic refresh queued" : "Topic refresh already queued"
+        );
       } else {
         toast.error(data.error || "Failed to refresh topics");
       }
@@ -555,18 +584,26 @@ export function SettingsPanel() {
       });
       const data = await res.json();
       setTelegramAuth({
-        state: data.state,
-        error: data.error,
-        passwordHint: data.passwordHint,
+        ...DEFAULT_TELEGRAM_AUTH,
+        ...data,
       });
-      if (data.state === "ready") {
-        toast.success("Telegram connected");
-        setAuthCode("");
-        setAuthPassword("");
-      } else if (data.state === "disconnected") {
-        toast.success("Telegram disconnected");
-      } else if (data.error) {
+
+      if (!data.success) {
         toast.error(data.error);
+      } else {
+        if (action === "connect") {
+          toast.success(data.created ? "Telegram connect queued" : "Telegram connect already queued");
+        } else if (action === "disconnect") {
+          toast.success(data.created ? "Telegram disconnect queued" : "Telegram disconnect already queued");
+        } else if (action === "reset") {
+          toast.success(data.created ? "Telegram session reset queued" : "Telegram reset already queued");
+        } else if (action === "code") {
+          toast.success(data.created ? "Verification code queued" : "Verification code already queued");
+          setAuthCode("");
+        } else if (action === "password") {
+          toast.success(data.created ? "2FA password queued" : "2FA password already queued");
+          setAuthPassword("");
+        }
       }
     } catch {
       toast.error("Failed to communicate with Telegram");
@@ -608,7 +645,7 @@ export function SettingsPanel() {
 
   const runAction = async (action: string, method: string = "POST") => {
     try {
-      toast.info(`Running ${action}...`);
+      toast.info(`Queueing ${action}...`);
       const res = await fetch(`/api/actions/${action}`, { method });
       const data = await res.json();
       if (data.success) {
@@ -1093,8 +1130,10 @@ export function SettingsPanel() {
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  {telegramAuth.state === "ready" ? (
+                  {telegramAuth.workerOnline && telegramAuth.state === "ready" ? (
                     <CheckCircle2 className="h-4 w-4 text-green-500" />
+                  ) : !telegramAuth.workerOnline ? (
+                    <AlertCircle className="h-4 w-4 text-red-500" />
                   ) : telegramAuth.state === "connecting" ||
                     telegramAuth.state === "waiting_code" ||
                     telegramAuth.state === "waiting_password" ? (
@@ -1105,7 +1144,9 @@ export function SettingsPanel() {
                     <AlertCircle className="h-4 w-4 text-muted-foreground" />
                   )}
                   <span className="text-sm font-medium">
-                    {telegramAuth.state === "ready"
+                    {!telegramAuth.workerOnline
+                      ? "Worker offline"
+                      : telegramAuth.state === "ready"
                       ? "Connected"
                       : telegramAuth.state === "connecting"
                         ? "Connecting..."
@@ -1113,13 +1154,13 @@ export function SettingsPanel() {
                           ? "Verification code sent"
                           : telegramAuth.state === "waiting_password"
                             ? "2FA password required"
-                            : telegramAuth.state === "error"
-                              ? "Connection failed"
-                              : "Not connected"}
+                        : telegramAuth.state === "error"
+                          ? "Connection failed"
+                          : "Not connected"}
                   </span>
                 </div>
                 <div className="flex gap-2">
-                  {telegramAuth.state === "ready" ? (
+                  {telegramAuth.workerOnline && telegramAuth.state === "ready" ? (
                     <Button
                       variant="outline"
                       size="sm"
@@ -1149,33 +1190,22 @@ export function SettingsPanel() {
                     variant="destructive"
                     size="sm"
                     disabled={authLoading}
-                    onClick={async () => {
-                      setAuthLoading(true);
-                      try {
-                        const res = await fetch("/api/auth/telegram", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ action: "reset" }),
-                        });
-                        const data = await res.json();
-                        setTelegramAuth({
-                          state: data.state ?? "disconnected",
-                          error: data.error ?? null,
-                          passwordHint: data.passwordHint ?? "",
-                        });
-                        toast.success("Telegram session reset (credentials preserved)");
-                      } catch {
-                        toast.error("Failed to reset Telegram");
-                      } finally {
-                        setAuthLoading(false);
-                      }
-                    }}
+                    onClick={() => telegramAuthAction("reset")}
                   >
                     <Bomb className="mr-1 h-4 w-4" />
                     Reset
                   </Button>
                 </div>
               </div>
+              <p className="text-xs text-muted-foreground">
+                {!telegramAuth.workerOnline
+                  ? "The Telegram worker heartbeat is stale. Start or restart the worker to process queued commands."
+                  : telegramAuth.busy
+                    ? `Worker is processing Telegram command #${telegramAuth.currentCommandId}.`
+                    : telegramAuth.sessionReady
+                      ? "A reusable Telegram session is available in worker storage."
+                      : "No active Telegram session is available yet."}
+              </p>
               {telegramAuth.error && (
                 <p className="text-xs text-red-500">{telegramAuth.error}</p>
               )}

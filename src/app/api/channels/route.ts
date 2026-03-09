@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { withAuth } from "@/lib/auth";
-import { resolveChannelInfo } from "@/lib/telegram/channel-info";
+import { enqueueTelegramCommand } from "@/lib/telegram/client";
 import type { ChannelProgress } from "@prisma/client";
 
 function serializeChannel(c: ChannelProgress) {
@@ -40,7 +40,7 @@ export const GET = withAuth(async () => {
   }
 });
 
-export const POST = withAuth(async (request) => {
+export const POST = withAuth(async (request, user) => {
   try {
     const body = await request.json();
     const { channelId, channelName } = body;
@@ -57,7 +57,7 @@ export const POST = withAuth(async (request) => {
     });
     const nextPriority = (maxPriority._max.priority ?? -1) + 1;
 
-    let channel = await prisma.channelProgress.create({
+    const channel = await prisma.channelProgress.create({
       data: {
         channelId,
         channelName: channelName || channelId,
@@ -65,10 +65,10 @@ export const POST = withAuth(async (request) => {
       },
     });
 
-    // Try to fetch title & description from Telegram
-    await resolveChannelInfo(channelId);
-    channel = await prisma.channelProgress.findUniqueOrThrow({
-      where: { channelId },
+    await enqueueTelegramCommand({
+      type: "refresh_topics",
+      payload: { channelId },
+      requestedByUserId: user.id,
     });
 
     return NextResponse.json({ success: true, data: serializeChannel(channel) }, { status: 201 });

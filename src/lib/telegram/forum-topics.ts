@@ -19,7 +19,6 @@ export async function fetchForumTopics(
   let offsetMessageId = 0;
   let offsetMessageThreadId = 0;
 
-  // eslint-disable-next-line no-constant-condition
   while (true) {
     const result = (await client.invoke({
       _: "getForumTopics",

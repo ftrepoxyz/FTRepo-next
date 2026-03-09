@@ -147,6 +147,43 @@ model Setting {
   @@map("settings")
 }
 
+model TelegramRuntimeState {
+  id               Int       @id
+  state            String    @default("disconnected")
+  sessionReady     Boolean   @default(false) @map("session_ready")
+  error            String?
+  passwordHint     String    @default("") @map("password_hint")
+  owner            String?
+  lastHeartbeatAt  DateTime? @map("last_heartbeat_at")
+  lastConnectedAt  DateTime? @map("last_connected_at")
+  lastAuthAt       DateTime? @map("last_auth_at")
+  retryCount       Int       @default(0) @map("retry_count")
+  currentCommandId Int?      @map("current_command_id")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  @@map("telegram_runtime_state")
+}
+
+model TelegramCommand {
+  id                Int       @id @default(autoincrement())
+  type              String
+  payload           Json?
+  status            String    @default("pending")
+  requestedByUserId Int?      @map("requested_by_user_id")
+  requestedAt       DateTime  @default(now()) @map("requested_at")
+  startedAt         DateTime? @map("started_at")
+  completedAt       DateTime? @map("completed_at")
+  result            Json?
+  error             String?
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  @@index([status, requestedAt])
+  @@index([type, status])
+  @@map("telegram_commands")
+}
+
 model User {
   id           Int       @id @default(autoincrement())
   username     String    @unique

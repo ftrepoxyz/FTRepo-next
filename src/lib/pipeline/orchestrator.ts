@@ -1,4 +1,5 @@
 import { unlinkSync, existsSync } from "fs";
+import type { Client as TdlClient } from "tdl";
 import { prisma } from "../db";
 import { logger } from "../logger";
 import { extractIpa } from "../ipa/extractor";
@@ -7,14 +8,9 @@ import { getCachedLookup } from "../appstore/cache";
 import { uploadIpaToDailyRelease, deleteReleaseAsset } from "../github/releases";
 import { claimNextPending, markCompleted, markFailed } from "./queue";
 import { downloadIpaFromMessage } from "../telegram/downloader";
-import { withTelegramClient } from "../telegram/client";
-import { getTelegramChannels, getSettings } from "../config";
+import { getSettings } from "../config";
 import { enforceVersionLimit } from "../github/cleanup";
 import { matchTweak } from "../ipa/tweak-matcher";
-
-const globalForProcessing = globalThis as unknown as {
-  queueProcessing: boolean | undefined;
-};
 
 /**
  * Main processing pipeline:
@@ -27,7 +23,8 @@ const globalForProcessing = globalThis as unknown as {
  * 7. Cleanup temp files
  */
 export async function processNextIpa(
-  chatIdMap: Map<string, number>
+  chatIdMap: Map<string, number>,
+  client: TdlClient
 ): Promise<boolean> {
   const entry = await claimNextPending();
   if (!entry) return false;
@@ -42,32 +39,31 @@ export async function processNextIpa(
 
     await logger.info("process", `Processing ${entry.fileName} from ${entry.channelId}`);
 
-    tempPath = await withTelegramClient(async (client) => {
-      let chatId = chatIdMap.get(entry.channelId);
-      if (!chatId) {
-        try {
-          const chat = (await client.invoke({
-            _: "searchPublicChat",
-            username: entry.channelId.replace("@", ""),
-          })) as { _: string; id: number } | null;
-          if (chat && chat._ === "chat") {
-            chatId = chat.id;
-            chatIdMap.set(entry.channelId, chatId);
-            await logger.info("process", `Resolved channel ${entry.channelId} on-the-fly`);
-          }
-        } catch (e) {
-          await logger.warn("process", `Could not resolve channel ${entry.channelId}`, {
-            error: String(e),
-          });
+    let chatId = chatIdMap.get(entry.channelId);
+    if (!chatId) {
+      try {
+        const chat = (await client.invoke({
+          _: "searchPublicChat",
+          username: entry.channelId.replace("@", ""),
+        })) as { _: string; id: number } | null;
+        if (chat && chat._ === "chat") {
+          chatId = chat.id;
+          chatIdMap.set(entry.channelId, chatId);
+          await logger.info("process", `Resolved channel ${entry.channelId} on-the-fly`);
         }
+      } catch (e) {
+        await logger.warn("process", `Could not resolve channel ${entry.channelId}`, {
+          error: String(e),
+        });
       }
+    }
 
-      if (!chatId) {
-        return null;
-      }
+    if (!chatId) {
+      await markFailed(entry.id, `Unknown channel or missing file: ${entry.channelId}`);
+      return true;
+    }
 
-      return downloadIpaFromMessage(client, chatId, entry.messageId);
-    });
+    tempPath = await downloadIpaFromMessage(client, chatId, entry.messageId);
 
     if (!tempPath) {
       await markFailed(entry.id, `Unknown channel or missing file: ${entry.channelId}`);
@@ -200,53 +196,4 @@ export async function processNextIpa(
   }
 
   return true;
-}
-
-/**
- * Start processing the queue in the background.
- * Resolves channel chat IDs, then processes pending items until the queue is empty.
- * Only one instance runs at a time (guarded by global flag).
- */
-export async function startProcessing(): Promise<void> {
-  if (globalForProcessing.queueProcessing) return;
-  globalForProcessing.queueProcessing = true;
-
-  try {
-    const channels = await getTelegramChannels();
-
-    const chatIdMap = new Map<string, number>();
-    await withTelegramClient(async (client) => {
-      for (const channelId of channels) {
-        try {
-          const chat = (await client.invoke({
-            _: "searchPublicChat",
-            username: channelId.replace("@", ""),
-          })) as { _: string; id: number } | null;
-          if (chat && chat._ === "chat") {
-            chatIdMap.set(channelId, chat.id);
-          }
-        } catch (e) {
-          await logger.warn("process", `Could not resolve channel ${channelId}`, {
-            error: String(e),
-          });
-        }
-      }
-    });
-
-    await logger.info("process", `Queue processor started, ${chatIdMap.size} channel(s) pre-resolved`);
-
-    // Process until queue is empty
-    while (await processNextIpa(chatIdMap)) {
-      // Brief pause between items to avoid overwhelming resources
-      await new Promise((r) => setTimeout(r, 2000));
-    }
-
-    await logger.info("process", "Queue processor finished — no more pending items");
-  } catch (e) {
-    await logger.error("process", "Queue processor failed", {
-      error: String(e),
-    });
-  } finally {
-    globalForProcessing.queueProcessing = false;
-  }
 }
