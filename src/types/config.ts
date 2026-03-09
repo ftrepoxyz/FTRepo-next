@@ -5,6 +5,7 @@ export interface AltStoreApp {
   localizedDescription: string;
   iconURL: string;
   screenshots: AltStoreScreenshot[];
+  screenshotURLs: string[];
   versions: AltStoreVersion[];
   appPermissions: Record<string, never>;
   version: string;

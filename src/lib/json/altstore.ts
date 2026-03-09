@@ -25,6 +25,14 @@ function normalizeScreenshots(screenshotUrls: unknown): AltStoreScreenshot[] {
     .map((imageURL) => ({ imageURL }));
 }
 
+function normalizeScreenshotUrls(screenshotUrls: unknown): string[] {
+  if (!Array.isArray(screenshotUrls)) return [];
+
+  return screenshotUrls.filter(
+    (url): url is string => typeof url === "string" && url.length > 0
+  );
+}
+
 /**
  * Generate AltStore-format JSON (store.json).
  * Apps are grouped by composite key (bundleId::tweak), with multiple versions per app.
@@ -66,6 +74,7 @@ export function generateAltStoreJson(
       }));
 
     const latestVersion = versions[0];
+    const screenshotURLs = normalizeScreenshotUrls(latest.screenshotUrls);
 
     apps.push({
       name: displayName,
@@ -73,7 +82,8 @@ export function generateAltStoreJson(
       developerName: latest.developerName || "Unknown Developer",
       iconURL: latest.iconUrl || source.iconURL || "https://placehold.co/128",
       localizedDescription: latest.description || latest.appName,
-      screenshots: normalizeScreenshots(latest.screenshotUrls),
+      screenshots: normalizeScreenshots(screenshotURLs),
+      screenshotURLs,
       versions,
       appPermissions: {},
       version: latestVersion.version,
