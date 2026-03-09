@@ -10,6 +10,7 @@ export const GET = withAuth(async (request) => {
     const search = url.searchParams.get("search") || "";
     const bundleId = url.searchParams.get("bundleId") || "";
     const tweaked = url.searchParams.get("tweaked");
+    const channelId = url.searchParams.get("channelId") || "";
     const sortBy = url.searchParams.get("sortBy") || "createdAt";
     const sortOrder = url.searchParams.get("sortOrder") === "asc" ? "asc" : "desc";
 
@@ -22,15 +23,22 @@ export const GET = withAuth(async (request) => {
       }),
       ...(bundleId && { bundleId }),
       ...(tweaked !== null && tweaked !== undefined && { isTweaked: tweaked === "true" }),
+      ...(channelId && { channelId }),
     };
 
-    const [total, ipas] = await Promise.all([
+    const [total, ipas, channelRows] = await Promise.all([
       prisma.downloadedIpa.count({ where }),
       prisma.downloadedIpa.findMany({
         where,
         orderBy: { [sortBy]: sortOrder },
         skip: (page - 1) * pageSize,
         take: pageSize,
+      }),
+      prisma.downloadedIpa.findMany({
+        where: { channelId: { not: null } },
+        distinct: ["channelId"],
+        select: { channelId: true },
+        orderBy: { channelId: "asc" },
       }),
     ]);
 
@@ -46,6 +54,7 @@ export const GET = withAuth(async (request) => {
       page,
       pageSize,
       totalPages: Math.ceil(total / pageSize),
+      channels: channelRows.map((c) => c.channelId).filter(Boolean),
     });
   } catch (e) {
     return NextResponse.json(
