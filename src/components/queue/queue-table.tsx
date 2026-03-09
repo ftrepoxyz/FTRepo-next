@@ -86,6 +86,11 @@ function StatusBadge({ status }: { status: string }) {
       label: "Failed",
       className: "bg-red-500/10 text-red-600 dark:text-red-400",
     },
+    skipped: {
+      icon: SkipForward,
+      label: "Skipped",
+      className: "bg-zinc-500/10 text-zinc-600 dark:text-zinc-400",
+    },
   };
 
   const c = config[status] ?? {
@@ -297,7 +302,7 @@ export function QueueTable() {
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
         <StatDot color="bg-amber-500" label="Pending" count={stats.pending ?? 0} />
         <StatDot color="bg-blue-500" label="Active" count={(stats.downloading ?? 0) + (stats.processing ?? 0)} />
-        <StatDot color="bg-emerald-500" label="Done" count={stats.completed ?? 0} />
+        <StatDot color="bg-emerald-500" label="Completed" count={stats.completed ?? 0} />
         <StatDot color="bg-red-500" label="Failed" count={stats.failed ?? 0} />
 
         {selectedIds.size > 0 && (

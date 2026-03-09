@@ -1,10 +1,13 @@
 import { getSettings } from "../config";
 import { enhanceAppleScreenshotUrls } from "./images";
+import { lookupAppPageScreenshots } from "./page";
 import { AppStoreLookup } from "@/types/models";
 
 interface iTunesResult {
   bundleId: string;
   trackName: string;
+  trackId?: number;
+  trackViewUrl?: string;
   artworkUrl512?: string;
   artworkUrl100?: string;
   screenshotUrls?: string[];
@@ -35,12 +38,25 @@ export async function lookupApp(bundleId: string): Promise<AppStoreLookup | null
     if (data.resultCount === 0 || !data.results[0]) return null;
 
     const result = data.results[0];
+    let screenshots = enhanceAppleScreenshotUrls(result.screenshotUrls || []);
+
+    if (screenshots.length === 0) {
+      const pageUrl =
+        result.trackViewUrl ||
+        (result.trackId
+          ? `https://apps.apple.com/${country}/app/id${result.trackId}`
+          : null);
+
+      if (pageUrl) {
+        screenshots = await lookupAppPageScreenshots(pageUrl);
+      }
+    }
 
     return {
       bundleId: result.bundleId,
       appName: result.trackName,
       iconUrl: result.artworkUrl512 || result.artworkUrl100 || "",
-      screenshots: enhanceAppleScreenshotUrls(result.screenshotUrls || []),
+      screenshots,
       description: result.description || "",
       developer: result.artistName || "",
       genre: result.primaryGenreName || "",

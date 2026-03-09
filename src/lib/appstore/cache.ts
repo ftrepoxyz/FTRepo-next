@@ -16,17 +16,20 @@ export async function getCachedLookup(bundleId: string): Promise<AppStoreLookup 
 
   if (cached && new Date() < cached.expiresAt) {
     const screenshots = enhanceAppleScreenshotUrls(cached.screenshots);
-    return {
-      bundleId: cached.bundleId,
-      appName: cached.appName || "",
-      iconUrl: cached.iconUrl || "",
-      screenshots,
-      description: cached.description || "",
-      developer: cached.developer || "",
-      genre: cached.genre || "",
-      price: cached.price || 0,
-      rating: cached.rating || 0,
-    };
+
+    if (screenshots.length > 0) {
+      return {
+        bundleId: cached.bundleId,
+        appName: cached.appName || "",
+        iconUrl: cached.iconUrl || "",
+        screenshots,
+        description: cached.description || "",
+        developer: cached.developer || "",
+        genre: cached.genre || "",
+        price: cached.price || 0,
+        rating: cached.rating || 0,
+      };
+    }
   }
 
   // Fetch from API
