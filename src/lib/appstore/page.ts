@@ -6,13 +6,22 @@ const APP_STORE_PAGE_URL_PATTERN =
 const SCREENSHOT_BASE_PATTERN =
   /\/\d+x\d+bb(?:-60)?\.(?:png|jpe?g|webp)(\?.*)?$/i;
 
+const SCREENSHOT_TEMPLATE_PATTERN = /\/\{w\}x\{h\}\{c\}\.\{f\}$/i;
+
 function isScreenshotCandidate(url: string): boolean {
   const normalized = url.toLowerCase();
+  const isTemplate = normalized.includes("{w}x{h}{c}.{f}");
+  const hasConcreteSize = SCREENSHOT_BASE_PATTERN.test(normalized);
+  const looksLikeScreenshotAsset =
+    normalized.includes("screen") ||
+    normalized.includes("iphone") ||
+    normalized.includes("ipad") ||
+    normalized.includes("english__u0028");
 
   return (
-    !normalized.includes("{w}") &&
-    normalized.includes("screen") &&
     normalized.includes("mzstatic.com/image/thumb/") &&
+    (isTemplate || hasConcreteSize) &&
+    looksLikeScreenshotAsset &&
     !normalized.includes("appicon") &&
     !normalized.includes("placeholder") &&
     !normalized.includes("avatar") &&
@@ -22,7 +31,9 @@ function isScreenshotCandidate(url: string): boolean {
 }
 
 function screenshotBaseKey(url: string): string {
-  return url.replace(SCREENSHOT_BASE_PATTERN, "");
+  return url
+    .replace(SCREENSHOT_BASE_PATTERN, "")
+    .replace(SCREENSHOT_TEMPLATE_PATTERN, "");
 }
 
 function extractScreenshotUrls(html: string): string[] {

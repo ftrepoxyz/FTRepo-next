@@ -1,6 +1,10 @@
 const APPLE_SCREENSHOT_TARGET_SIZE = "1320x2868bb";
 
 export function enhanceAppleScreenshotUrl(url: string): string {
+  if (url.includes("{w}x{h}{c}.{f}")) {
+    return url.replace("{w}x{h}{c}.{f}", `${APPLE_SCREENSHOT_TARGET_SIZE}.jpg`);
+  }
+
   if (
     !url.includes("mzstatic.com") ||
     !url.includes("/image/thumb/") ||
