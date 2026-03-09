@@ -5,6 +5,17 @@ import { deleteReleaseAsset, getRelease, deleteRelease } from "@/lib/github/rele
 import { generateAllJson } from "@/lib/json/generator";
 import { logger } from "@/lib/logger";
 
+interface Deletion {
+  assetId: number;
+  releaseId: number;
+  dbId: number | null;
+}
+
+interface Rename {
+  dbId: number;
+  appName: string;
+}
+
 function buildApplyResponse(
   success: boolean,
   deletedCount: number,
@@ -32,8 +43,8 @@ function buildApplyResponse(
 export const POST = withAuth(async (request) => {
   try {
     const { deletions = [], renames = [] }: {
-      deletions: number[];
-      renames: { id: number; appName: string }[];
+      deletions: Deletion[];
+      renames: Rename[];
     } = await request.json();
 
     if (deletions.length === 0 && renames.length === 0) {
@@ -51,41 +62,21 @@ export const POST = withAuth(async (request) => {
     let deletedCount = 0;
     let releasesCleanedUp = 0;
 
-    // Phase 1: Process deletions
+    // Phase 1: Process deletions — delete GitHub assets directly by assetId
     if (deletions.length > 0) {
-      const ipasToDelete = await prisma.downloadedIpa.findMany({
-        where: { id: { in: deletions } },
-        select: { id: true, appName: true, githubAssetId: true, githubReleaseId: true },
-      });
-
-      // Track affected releases to check if they become empty
       const affectedReleaseIds = new Set<number>();
 
-      for (const ipa of ipasToDelete) {
-        if (ipa.githubAssetId) {
-          try {
-            await deleteReleaseAsset(ipa.githubAssetId);
-            if (ipa.githubReleaseId) {
-              affectedReleaseIds.add(ipa.githubReleaseId);
-            }
-          } catch (e) {
-            await logger.warn(
-              "cleanup",
-              `Failed to delete asset ${ipa.githubAssetId} for ${ipa.appName}`,
-              { error: String(e) }
-            );
-          }
-        } else if (ipa.githubReleaseId) {
-          try {
-            await deleteRelease(ipa.githubReleaseId);
-            releasesCleanedUp++;
-          } catch (e) {
-            await logger.warn(
-              "cleanup",
-              `Failed to delete legacy release ${ipa.githubReleaseId} for ${ipa.appName}`,
-              { error: String(e) }
-            );
-          }
+      for (const del of deletions) {
+        try {
+          await deleteReleaseAsset(del.assetId);
+          affectedReleaseIds.add(del.releaseId);
+          deletedCount++;
+        } catch (e) {
+          await logger.warn(
+            "cleanup",
+            `Failed to delete GitHub asset ${del.assetId}`,
+            { error: String(e) }
+          );
         }
       }
 
@@ -111,25 +102,30 @@ export const POST = withAuth(async (request) => {
         }
       }
 
-      // Delete IPAs from database
-      const deleteResult = await prisma.downloadedIpa.deleteMany({
-        where: { id: { in: deletions } },
-      });
-      deletedCount = deleteResult.count;
+      // Delete matching database records
+      const dbIds = deletions
+        .map((d) => d.dbId)
+        .filter((id): id is number => id !== null);
+
+      if (dbIds.length > 0) {
+        await prisma.downloadedIpa.deleteMany({
+          where: { id: { in: dbIds } },
+        });
+      }
     }
 
     // Phase 2: Process renames
     let renamedCount = 0;
     if (renames.length > 0) {
-      for (const { id, appName } of renames) {
+      for (const { dbId, appName } of renames) {
         try {
           await prisma.downloadedIpa.update({
-            where: { id },
+            where: { id: dbId },
             data: { appName },
           });
           renamedCount++;
         } catch (e) {
-          await logger.warn("cleanup", `Failed to rename IPA ${id}`, {
+          await logger.warn("cleanup", `Failed to rename IPA ${dbId}`, {
             error: String(e),
           });
         }

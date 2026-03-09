@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
-import { useUrlState, useUrlNumberState } from "@/hooks/use-url-state";
+import { useState, useMemo, useEffect } from "react";
 import {
   Table,
   TableBody,
@@ -20,8 +19,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { usePolling } from "@/hooks/use-polling";
-import { formatDistanceToNow } from "date-fns";
 import {
   Search,
   ChevronLeft,
@@ -35,25 +32,28 @@ import {
   Loader2,
   Check,
   X,
+  RefreshCw,
+  Package,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 interface LibraryEntry {
-  id: number;
-  bundleId: string;
+  assetId: number;
+  assetName: string;
+  downloadUrl: string;
+  size: number;
+  releaseId: number;
+  releaseTag: string;
+  dbId: number | null;
   appName: string;
+  bundleId: string;
   version: string;
-  fileSize: number;
   isTweaked: boolean;
-  isCorrupted: boolean;
   channelId: string | null;
-  tweaks: string[] | null;
+  fileSize: number;
   createdAt: string;
 }
-
-const EMPTY_ITEMS: LibraryEntry[] = [];
-const EMPTY_CHANNELS: string[] = [];
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return "0 B";
@@ -63,7 +63,7 @@ function formatBytes(bytes: number): string {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
 }
 
-type SortField = "appName" | "bundleId" | "version" | "fileSize" | "createdAt";
+type SortField = "appName" | "bundleId" | "version" | "fileSize" | "releaseTag";
 
 function SortHeader({ label, field, sortBy, sortOrder, onSort }: {
   label: string;
@@ -115,19 +115,27 @@ function Checkbox({ checked, onChange, className }: {
   );
 }
 
+const PAGE_SIZE = 20;
+
 export function LibraryTable() {
-  // URL-persisted state
-  const [search, setSearch] = useUrlState("search");
-  const [tweakedFilter, setTweakedFilter] = useUrlState("tweaked");
-  const [channelFilter, setChannelFilter] = useUrlState("channel");
-  const [page, setPage] = useUrlNumberState("page", 1);
-  const [sortBy, setSortBy] = useUrlState("sortBy", "createdAt") as [SortField, (v: string) => void];
-  const [sortOrder, setSortOrder] = useUrlState("sortOrder", "desc") as ["asc" | "desc", (v: string) => void];
+  // Fetched data
+  const [allItems, setAllItems] = useState<LibraryEntry[]>([]);
+  const [allChannels, setAllChannels] = useState<string[]>([]);
+  const [fetched, setFetched] = useState(false);
+  const [fetching, setFetching] = useState(false);
+
+  // Filter / search / sort state
+  const [search, setSearch] = useState("");
+  const [tweakedFilter, setTweakedFilter] = useState("");
+  const [channelFilter, setChannelFilter] = useState("");
+  const [page, setPage] = useState(1);
+  const [sortBy, setSortBy] = useState<SortField>("appName");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
 
   // Selection state
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
-  // Staged changes state
+  // Staged changes state (keyed by assetId)
   const [pendingDeletes, setPendingDeletes] = useState<Set<number>>(new Set());
   const [pendingRenames, setPendingRenames] = useState<Map<number, string>>(new Map());
 
@@ -140,44 +148,114 @@ export function LibraryTable() {
 
   const pendingCount = pendingDeletes.size + pendingRenames.size;
 
+  // Fetch from GitHub
+  const fetchLibrary = async () => {
+    setFetching(true);
+    try {
+      const res = await fetch("/api/library");
+      const result = await res.json();
+      if (result.success) {
+        setAllItems(result.data);
+        setAllChannels(result.channels || []);
+        setFetched(true);
+      } else {
+        toast.error(result.error || "Failed to fetch library");
+      }
+    } catch {
+      toast.error("Failed to fetch library");
+    } finally {
+      setFetching(false);
+    }
+  };
+
+  // Client-side filter + sort + paginate
+  const filtered = useMemo(() => {
+    let result = allItems;
+
+    // Search
+    if (search) {
+      const q = search.toLowerCase();
+      result = result.filter(
+        (item) =>
+          item.appName.toLowerCase().includes(q) ||
+          item.bundleId.toLowerCase().includes(q) ||
+          item.assetName.toLowerCase().includes(q)
+      );
+    }
+
+    // Tweaked filter
+    if (tweakedFilter === "true") {
+      result = result.filter((item) => item.isTweaked);
+    } else if (tweakedFilter === "false") {
+      result = result.filter((item) => !item.isTweaked);
+    }
+
+    // Channel filter
+    if (channelFilter) {
+      result = result.filter((item) => item.channelId === channelFilter);
+    }
+
+    // Sort
+    result = [...result].sort((a, b) => {
+      let aVal: string | number = "";
+      let bVal: string | number = "";
+
+      switch (sortBy) {
+        case "appName":
+          aVal = (pendingRenames.get(a.assetId) || a.appName).toLowerCase();
+          bVal = (pendingRenames.get(b.assetId) || b.appName).toLowerCase();
+          break;
+        case "bundleId":
+          aVal = a.bundleId.toLowerCase();
+          bVal = b.bundleId.toLowerCase();
+          break;
+        case "version":
+          aVal = a.version.toLowerCase();
+          bVal = b.version.toLowerCase();
+          break;
+        case "fileSize":
+          aVal = a.fileSize;
+          bVal = b.fileSize;
+          break;
+        case "releaseTag":
+          aVal = a.releaseTag;
+          bVal = b.releaseTag;
+          break;
+      }
+
+      if (aVal < bVal) return sortOrder === "asc" ? -1 : 1;
+      if (aVal > bVal) return sortOrder === "asc" ? 1 : -1;
+      return 0;
+    });
+
+    return result;
+  }, [allItems, search, tweakedFilter, channelFilter, sortBy, sortOrder, pendingRenames]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  // Reset page when filters change
+  useEffect(() => { setPage(1); }, [search, tweakedFilter, channelFilter]);
+
+  // Clean up selection when page items change
+  useEffect(() => {
+    setSelectedIds((prev) => {
+      if (prev.size === 0) return prev;
+      const visibleIds = new Set(pageItems.map((item) => item.assetId));
+      const next = new Set(Array.from(prev).filter((id) => visibleIds.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [pageItems]);
+
   const handleSort = (field: SortField) => {
     if (field === sortBy) {
       setSortOrder(sortOrder === "asc" ? "desc" : "asc");
     } else {
       setSortBy(field);
-      setSortOrder("desc");
+      setSortOrder("asc");
     }
     setPage(1);
   };
-
-  const fetcher = useCallback(async () => {
-    const params = new URLSearchParams({
-      page: String(page),
-      pageSize: "20",
-      sortBy,
-      sortOrder,
-      ...(search && { search }),
-      ...(tweakedFilter && { tweaked: tweakedFilter }),
-      ...(channelFilter && { channelId: channelFilter }),
-    });
-    const res = await fetch(`/api/database?${params}`);
-    return res.json();
-  }, [page, search, tweakedFilter, channelFilter, sortBy, sortOrder]);
-
-  const { data, refresh } = usePolling(fetcher, 30000);
-  const items: LibraryEntry[] = data?.data ?? EMPTY_ITEMS;
-  const totalPages: number = data?.totalPages || 1;
-  const channels: string[] = data?.channels ?? EMPTY_CHANNELS;
-
-  useEffect(() => {
-    setSelectedIds((prev) => {
-      if (prev.size === 0) return prev;
-
-      const visibleIds = new Set(items.map((item) => item.id));
-      const next = new Set(Array.from(prev).filter((id) => visibleIds.has(id)));
-      return next.size === prev.size ? prev : next;
-    });
-  }, [items]);
 
   // Selection handlers
   const toggleSelect = (id: number) => {
@@ -187,17 +265,16 @@ export function LibraryTable() {
     setSelectedIds(next);
   };
 
-  const allChecked = items.length > 0 && items.every((i) => selectedIds.has(i.id));
+  const allChecked = pageItems.length > 0 && pageItems.every((i) => selectedIds.has(i.assetId));
 
   // Pending change handlers
-  const markForDeletion = (id: number) => {
+  const markForDeletion = (assetId: number) => {
     const next = new Set(pendingDeletes);
-    next.add(id);
+    next.add(assetId);
     setPendingDeletes(next);
-    // Remove from renames if also pending rename
-    if (pendingRenames.has(id)) {
+    if (pendingRenames.has(assetId)) {
       const nextRenames = new Map(pendingRenames);
-      nextRenames.delete(id);
+      nextRenames.delete(assetId);
       setPendingRenames(nextRenames);
     }
   };
@@ -205,45 +282,42 @@ export function LibraryTable() {
   const batchMarkForDeletion = () => {
     const next = new Set(pendingDeletes);
     const nextRenames = new Map(pendingRenames);
-
     for (const id of selectedIds) {
       next.add(id);
       nextRenames.delete(id);
     }
-
     setPendingDeletes(next);
     setPendingRenames(nextRenames);
     setSelectedIds(new Set());
   };
 
-  const undoPending = (id: number) => {
-    if (pendingDeletes.has(id)) {
+  const undoPending = (assetId: number) => {
+    if (pendingDeletes.has(assetId)) {
       const next = new Set(pendingDeletes);
-      next.delete(id);
+      next.delete(assetId);
       setPendingDeletes(next);
     }
-    if (pendingRenames.has(id)) {
+    if (pendingRenames.has(assetId)) {
       const next = new Map(pendingRenames);
-      next.delete(id);
+      next.delete(assetId);
       setPendingRenames(next);
     }
   };
 
   const startRename = (item: LibraryEntry) => {
-    setEditingId(item.id);
-    setEditValue(pendingRenames.get(item.id) || item.appName);
+    setEditingId(item.assetId);
+    setEditValue(pendingRenames.get(item.assetId) || item.appName);
   };
 
   const confirmRename = (item: LibraryEntry) => {
     const trimmed = editValue.trim();
     if (trimmed && trimmed !== item.appName) {
       const next = new Map(pendingRenames);
-      next.set(item.id, trimmed);
+      next.set(item.assetId, trimmed);
       setPendingRenames(next);
     } else if (trimmed === item.appName) {
-      // Undo rename if reverted to original
       const next = new Map(pendingRenames);
-      next.delete(item.id);
+      next.delete(item.assetId);
       setPendingRenames(next);
     }
     setEditingId(null);
@@ -261,13 +335,28 @@ export function LibraryTable() {
   const handleApply = async () => {
     setApplying(true);
     try {
+      // Build deletions with assetId, releaseId, dbId
+      const deletions = Array.from(pendingDeletes).map((assetId) => {
+        const item = allItems.find((i) => i.assetId === assetId);
+        return {
+          assetId,
+          releaseId: item?.releaseId ?? 0,
+          dbId: item?.dbId ?? null,
+        };
+      });
+
+      // Build renames with dbId (only items that have a DB record can be renamed)
+      const renames = Array.from(pendingRenames.entries())
+        .map(([assetId, appName]) => {
+          const item = allItems.find((i) => i.assetId === assetId);
+          return item?.dbId ? { dbId: item.dbId, appName } : null;
+        })
+        .filter((r): r is { dbId: number; appName: string } => r !== null);
+
       const res = await fetch("/api/library/apply", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          deletions: Array.from(pendingDeletes),
-          renames: Array.from(pendingRenames.entries()).map(([id, appName]) => ({ id, appName })),
-        }),
+        body: JSON.stringify({ deletions, renames }),
       });
       const result = await res.json();
       if (result.success) {
@@ -275,13 +364,14 @@ export function LibraryTable() {
         setPendingDeletes(new Set());
         setPendingRenames(new Map());
         setSelectedIds(new Set());
-        refresh();
+        // Re-fetch to show updated state
+        await fetchLibrary();
       } else if (result.applied) {
         toast.error(result.error || "Changes were applied, but publishing failed");
         setPendingDeletes(new Set());
         setPendingRenames(new Map());
         setSelectedIds(new Set());
-        refresh();
+        await fetchLibrary();
       } else {
         toast.error(result.error || "Failed to apply changes");
       }
@@ -292,35 +382,52 @@ export function LibraryTable() {
     }
   };
 
+  // Empty state — not yet fetched
+  if (!fetched) {
+    return (
+      <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-16">
+        <Package className="mb-4 h-12 w-12 text-muted-foreground/40" />
+        <p className="mb-1 text-lg font-medium text-muted-foreground">
+          Library not loaded
+        </p>
+        <p className="mb-6 text-sm text-muted-foreground/70">
+          Fetch current IPAs from GitHub Releases to manage them
+        </p>
+        <Button onClick={fetchLibrary} disabled={fetching}>
+          {fetching ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <RefreshCw className="mr-2 h-4 w-4" />
+          )}
+          {fetching ? "Fetching..." : "Fetch Library"}
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
-      {/* Toolbar: search + filters */}
+      {/* Toolbar: search + filters + re-fetch */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-[180px]">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Search by name or bundle ID..."
+            placeholder="Search by name, bundle ID, or file..."
             value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-            }}
+            onChange={(e) => setSearch(e.target.value)}
             className="pl-9"
           />
         </div>
         <Select
           value={channelFilter}
-          onValueChange={(v) => {
-            setChannelFilter(v === "all" ? "" : v);
-            setPage(1);
-          }}
+          onValueChange={(v) => setChannelFilter(v === "all" ? "" : v)}
         >
           <SelectTrigger size="sm" className="w-[160px]">
             <SelectValue placeholder="All channels" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All channels</SelectItem>
-            {channels.map((ch) => (
+            {allChannels.map((ch) => (
               <SelectItem key={ch} value={ch}>
                 {ch}
               </SelectItem>
@@ -329,10 +436,7 @@ export function LibraryTable() {
         </Select>
         <Select
           value={tweakedFilter}
-          onValueChange={(v) => {
-            setTweakedFilter(v === "all" ? "" : v);
-            setPage(1);
-          }}
+          onValueChange={(v) => setTweakedFilter(v === "all" ? "" : v)}
         >
           <SelectTrigger size="sm" className="w-[130px]">
             <SelectValue placeholder="All types" />
@@ -343,6 +447,15 @@ export function LibraryTable() {
             <SelectItem value="false">Stock</SelectItem>
           </SelectContent>
         </Select>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={fetchLibrary}
+          disabled={fetching || applying}
+        >
+          <RefreshCw className={cn("mr-1 h-3 w-3", fetching && "animate-spin")} />
+          Refresh
+        </Button>
       </div>
 
       {/* Batch actions + pending changes bar */}
@@ -378,6 +491,12 @@ export function LibraryTable() {
         )}
       </div>
 
+      {/* Summary */}
+      <p className="text-sm text-muted-foreground">
+        {filtered.length} IPA{filtered.length !== 1 ? "s" : ""} found
+        {filtered.length !== allItems.length && ` (${allItems.length} total)`}
+      </p>
+
       {/* Table */}
       <div className="overflow-x-auto rounded-lg border">
         <Table className="min-w-[750px]">
@@ -385,7 +504,7 @@ export function LibraryTable() {
             <TableRow className="bg-muted/40 hover:bg-muted/40">
               <TableHead className="w-10">
                 <Checkbox checked={allChecked} onChange={(checked) => {
-                  setSelectedIds(checked ? new Set(items.map((i) => i.id)) : new Set());
+                  setSelectedIds(checked ? new Set(pageItems.map((i) => i.assetId)) : new Set());
                 }} />
               </TableHead>
               <TableHead><SortHeader label="App" field="appName" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} /></TableHead>
@@ -393,38 +512,39 @@ export function LibraryTable() {
               <TableHead><SortHeader label="Version" field="version" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} /></TableHead>
               <TableHead><SortHeader label="Size" field="fileSize" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} /></TableHead>
               <TableHead>Type</TableHead>
-              <TableHead><SortHeader label="Added" field="createdAt" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} /></TableHead>
+              <TableHead><SortHeader label="Release" field="releaseTag" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} /></TableHead>
               <TableHead className="w-20" />
             </TableRow>
           </TableHeader>
           <TableBody>
-            {items.length === 0 ? (
+            {pageItems.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
-                  No IPAs found
+                  {allItems.length === 0 ? "No IPAs found on GitHub" : "No results match your filters"}
                 </TableCell>
               </TableRow>
             ) : (
-              items.map((item) => {
-                const isDeleted = pendingDeletes.has(item.id);
-                const isRenamed = pendingRenames.has(item.id);
+              pageItems.map((item) => {
+                const isDeleted = pendingDeletes.has(item.assetId);
+                const isRenamed = pendingRenames.has(item.assetId);
                 const hasPending = isDeleted || isRenamed;
-                const displayName = pendingRenames.get(item.id) || item.appName;
+                const displayName = pendingRenames.get(item.assetId) || item.appName;
+                const canRename = item.dbId !== null;
 
                 return (
                   <TableRow
-                    key={item.id}
-                    data-state={selectedIds.has(item.id) ? "selected" : undefined}
+                    key={item.assetId}
+                    data-state={selectedIds.has(item.assetId) ? "selected" : undefined}
                     className={cn(isDeleted && "opacity-40")}
                   >
                     <TableCell>
                       <Checkbox
-                        checked={selectedIds.has(item.id)}
-                        onChange={() => toggleSelect(item.id)}
+                        checked={selectedIds.has(item.assetId)}
+                        onChange={() => toggleSelect(item.assetId)}
                       />
                     </TableCell>
                     <TableCell className="max-w-[220px]">
-                      {editingId === item.id ? (
+                      {editingId === item.assetId ? (
                         <div className="flex items-center gap-1">
                           <Input
                             value={editValue}
@@ -468,21 +588,14 @@ export function LibraryTable() {
                       {formatBytes(item.fileSize)}
                     </TableCell>
                     <TableCell>
-                      <div className="flex gap-1">
-                        {item.isTweaked ? (
-                          <Badge variant="secondary">Tweaked</Badge>
-                        ) : (
-                          <Badge variant="outline">Stock</Badge>
-                        )}
-                        {item.isCorrupted && (
-                          <Badge variant="destructive">Corrupted</Badge>
-                        )}
-                      </div>
+                      {item.isTweaked ? (
+                        <Badge variant="secondary">Tweaked</Badge>
+                      ) : (
+                        <Badge variant="outline">Stock</Badge>
+                      )}
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
-                      {formatDistanceToNow(new Date(item.createdAt), {
-                        addSuffix: true,
-                      })}
+                      {item.releaseTag}
                     </TableCell>
                     <TableCell>
                       {hasPending ? (
@@ -490,27 +603,29 @@ export function LibraryTable() {
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                          onClick={() => undoPending(item.id)}
+                          onClick={() => undoPending(item.assetId)}
                           title="Undo"
                         >
                           <Undo2 className="h-3.5 w-3.5" />
                         </Button>
                       ) : (
                         <div className="flex">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                            onClick={() => startRename(item)}
-                            title="Rename"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
+                          {canRename && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                              onClick={() => startRename(item)}
+                              title="Rename"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                            onClick={() => markForDeletion(item.id)}
+                            onClick={() => markForDeletion(item.assetId)}
                             title="Delete"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
