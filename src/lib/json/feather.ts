@@ -13,5 +13,5 @@ export function generateFeatherJson(
   knownTweaks: TweakConfig[]
 ): string {
   // Feather uses the same format as AltStore
-  return generateAltStoreJson(ipas, source, maxVersions, knownTweaks);
+  return generateAltStoreJson(ipas, source, maxVersions, knownTweaks, false);
 }

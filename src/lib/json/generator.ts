@@ -54,7 +54,13 @@ export async function generateAllJson(
 
   await logger.info("generate", `Generating JSON for ${ipas.length} IPAs`);
 
-  const altstore = generateAltStoreJson(ipas, source, maxVersions, knownTweaks);
+  const altstore = generateAltStoreJson(
+    ipas,
+    source,
+    maxVersions,
+    knownTweaks,
+    true
+  );
   const esign = generateESignJson(ipas, source, knownTweaks, channelPriorities);
   const scarlet = generateScarletJson(ipas, source, knownTweaks, channelPriorities);
   const feather = generateFeatherJson(ipas, source, maxVersions, knownTweaks);

@@ -16,13 +16,20 @@ export function generateAltStoreJson(
   ipas: DownloadedIpa[],
   source: { name: string; iconURL?: string },
   maxVersions: number,
-  knownTweaks: TweakConfig[]
+  knownTweaks: TweakConfig[],
+  dedupeBundleIdentifiers: boolean = false
 ): string {
   const grouped = groupByCompositeKey(ipas, knownTweaks);
   const apps: AltStoreApp[] = [];
+  const seenBundleIds = new Set<string>();
 
   for (const [, { ipas: bundleIpas, matchedTweak }] of grouped) {
     const latest = bundleIpas[0];
+
+    if (dedupeBundleIdentifiers && seenBundleIds.has(latest.bundleId)) {
+      continue;
+    }
+
     const displayName = buildDisplayName(latest.appName, matchedTweak);
     const versions: AltStoreVersion[] = bundleIpas
       .slice(0, maxVersions)
@@ -48,6 +55,10 @@ export function generateAltStoreJson(
       size: latestVersion.size,
       downloadURL: latestVersion.downloadURL,
     });
+
+    if (dedupeBundleIdentifiers) {
+      seenBundleIds.add(latest.bundleId);
+    }
   }
 
   const repo: AltStoreRepo = {
