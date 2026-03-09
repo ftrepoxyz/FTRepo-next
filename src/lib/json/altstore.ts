@@ -1,6 +1,10 @@
 import { DownloadedIpa } from "@prisma/client";
 import { AltStoreApp, AltStoreVersion, TweakConfig } from "@/types/config";
-import { groupByCompositeKey, buildDisplayName } from "./grouping";
+import {
+  AppNameOverrideMaps,
+  groupByCompositeKey,
+  resolveDisplayName,
+} from "./grouping";
 
 interface AltStoreRepo {
   name: string;
@@ -17,20 +21,28 @@ export function generateAltStoreJson(
   source: { name: string; iconURL?: string },
   maxVersions: number,
   knownTweaks: TweakConfig[],
-  dedupeBundleIdentifiers: boolean = false
+  dedupeBundleIdentifiers: boolean = false,
+  overrides?: AppNameOverrideMaps,
+  feed: "global" | "feather" = "global"
 ): string {
   const grouped = groupByCompositeKey(ipas, knownTweaks);
   const apps: AltStoreApp[] = [];
   const seenBundleIds = new Set<string>();
 
-  for (const [, { ipas: bundleIpas, matchedTweak }] of grouped) {
+  for (const [, { groupKey, ipas: bundleIpas, matchedTweak }] of grouped) {
     const latest = bundleIpas[0];
 
     if (dedupeBundleIdentifiers && seenBundleIds.has(latest.bundleId)) {
       continue;
     }
 
-    const displayName = buildDisplayName(latest.appName, matchedTweak);
+    const displayName = resolveDisplayName({
+      appName: latest.appName,
+      groupKey,
+      matchedTweak,
+      overrides,
+      feed,
+    });
     const versions: AltStoreVersion[] = bundleIpas
       .slice(0, maxVersions)
       .map((ipa) => ({

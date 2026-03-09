@@ -61,6 +61,42 @@ export async function publishJsonFile(
 }
 
 /**
+ * Read a JSON file from the configured repository branch.
+ * Returns null when the file is not present or not a file blob.
+ */
+export async function fetchPublishedJsonFile(path: string): Promise<string | null> {
+  const ok = await getOctokit();
+  const settings = await getSettings();
+  const owner = settings.github_owner;
+  const repo = settings.github_repo;
+  const branch = settings.github_branch;
+
+  try {
+    const existing = await ok.repos.getContent({
+      owner,
+      repo,
+      path,
+      ref: branch,
+    });
+
+    if (Array.isArray(existing.data) || !("content" in existing.data)) {
+      return null;
+    }
+
+    const content = existing.data.content || "";
+    const encoding = existing.data.encoding || "base64";
+
+    if (encoding !== "base64") {
+      return null;
+    }
+
+    return Buffer.from(content, "base64").toString("utf-8");
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Publish multiple JSON files in sequence.
  */
 export async function publishAllJsonFiles(

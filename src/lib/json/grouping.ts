@@ -2,6 +2,13 @@ import { DownloadedIpa } from "@prisma/client";
 import { matchTweak } from "@/lib/ipa/tweak-matcher";
 import type { TweakConfig } from "@/types/config";
 
+export type RenameScope = "global" | "feather";
+
+export interface AppNameOverrideMaps {
+  global: Map<string, string>;
+  feather: Map<string, string>;
+}
+
 /**
  * Compare two version strings numerically (e.g. "5.45.0" > "5.44.0").
  * Falls back to lexicographic comparison for non-numeric segments.
@@ -25,8 +32,60 @@ function compareVersions(a: string, b: string): number {
 }
 
 export interface GroupedIpas {
+  groupKey: string;
   ipas: DownloadedIpa[];
   matchedTweak: string | null;
+}
+
+export interface VariantMeta {
+  groupKey: string;
+  matchedTweak: string | null;
+  renameScope: RenameScope;
+}
+
+export function getRenameScope(matchedTweak: string | null): RenameScope {
+  return matchedTweak ? "feather" : "global";
+}
+
+export function getVariantMeta(
+  bundleId: string,
+  appName: string,
+  tweaks: string[],
+  isTweaked: boolean,
+  knownTweaks: TweakConfig[],
+  channelId?: string | null
+): VariantMeta {
+  const { groupKey, matchedTweak } = matchTweak(
+    bundleId,
+    appName,
+    tweaks,
+    isTweaked,
+    knownTweaks,
+    channelId
+  );
+
+  return {
+    groupKey,
+    matchedTweak,
+    renameScope: getRenameScope(matchedTweak),
+  };
+}
+
+export function buildAppNameOverrideMaps(
+  overrides: { feed: string; groupKey: string; appName: string }[]
+): AppNameOverrideMaps {
+  const maps: AppNameOverrideMaps = {
+    global: new Map<string, string>(),
+    feather: new Map<string, string>(),
+  };
+
+  for (const override of overrides) {
+    if (override.feed === "global" || override.feed === "feather") {
+      maps[override.feed].set(override.groupKey, override.appName);
+    }
+  }
+
+  return maps;
 }
 
 /**
@@ -37,6 +96,38 @@ export function buildDisplayName(appName: string, matchedTweak: string | null): 
   if (appName.toLowerCase().includes(matchedTweak.toLowerCase())) return appName;
   if (matchedTweak.toLowerCase().includes(appName.toLowerCase())) return matchedTweak;
   return `${appName} ${matchedTweak}`;
+}
+
+export function resolveDisplayName(params: {
+  appName: string;
+  groupKey: string;
+  matchedTweak: string | null;
+  overrides?: AppNameOverrideMaps;
+  feed: "global" | "feather" | "library";
+  publishedName?: string | null;
+}): string {
+  const {
+    appName,
+    groupKey,
+    matchedTweak,
+    overrides,
+    feed,
+    publishedName,
+  } = params;
+
+  const baseName = buildDisplayName(appName, matchedTweak);
+  const globalOverride = overrides?.global.get(groupKey);
+  const featherOverride = overrides?.feather.get(groupKey);
+
+  if (feed === "global") {
+    return globalOverride ?? baseName;
+  }
+
+  if (feed === "feather") {
+    return globalOverride ?? featherOverride ?? publishedName ?? baseName;
+  }
+
+  return globalOverride ?? featherOverride ?? publishedName ?? baseName;
 }
 
 /**
@@ -58,7 +149,7 @@ export function groupByCompositeKey(
 
   for (const ipa of sorted) {
     const tweaks = (ipa.tweaks as string[]) || [];
-    const { groupKey, matchedTweak } = matchTweak(
+    const { groupKey, matchedTweak } = getVariantMeta(
       ipa.bundleId,
       ipa.appName,
       tweaks,
@@ -71,7 +162,7 @@ export function groupByCompositeKey(
     if (existing) {
       existing.ipas.push(ipa);
     } else {
-      grouped.set(groupKey, { ipas: [ipa], matchedTweak });
+      grouped.set(groupKey, { groupKey, ipas: [ipa], matchedTweak });
     }
   }
 
@@ -90,6 +181,7 @@ export function groupByCompositeKey(
 }
 
 export interface LatestIpaWithTweak {
+  groupKey: string;
   ipa: DownloadedIpa;
   matchedTweak: string | null;
 }
@@ -110,7 +202,7 @@ export function getLatestPerCompositeKey(
 
   for (const ipa of ipas) {
     const tweaks = (ipa.tweaks as string[]) || [];
-    const { groupKey, matchedTweak } = matchTweak(
+    const { groupKey, matchedTweak } = getVariantMeta(
       ipa.bundleId,
       ipa.appName,
       tweaks,
@@ -121,7 +213,7 @@ export function getLatestPerCompositeKey(
 
     const existing = map.get(groupKey);
     if (!existing) {
-      map.set(groupKey, { ipa, matchedTweak });
+      map.set(groupKey, { groupKey, ipa, matchedTweak });
       continue;
     }
 
@@ -129,11 +221,11 @@ export function getLatestPerCompositeKey(
 
     if (versionCmp > 0) {
       // Higher version number always wins
-      map.set(groupKey, { ipa, matchedTweak });
+      map.set(groupKey, { groupKey, ipa, matchedTweak });
     } else if (versionCmp === 0) {
       // Same version: prefer newer upload, then higher-priority channel
       if (ipa.createdAt > existing.ipa.createdAt) {
-        map.set(groupKey, { ipa, matchedTweak });
+        map.set(groupKey, { groupKey, ipa, matchedTweak });
       } else if (
         ipa.createdAt.getTime() === existing.ipa.createdAt.getTime() &&
         channelPriorities &&
@@ -143,7 +235,7 @@ export function getLatestPerCompositeKey(
         const ipaPriority = channelPriorities.get(ipa.channelId) ?? Infinity;
         const existingPriority = channelPriorities.get(existing.ipa.channelId) ?? Infinity;
         if (ipaPriority < existingPriority) {
-          map.set(groupKey, { ipa, matchedTweak });
+          map.set(groupKey, { groupKey, ipa, matchedTweak });
         }
       }
     }

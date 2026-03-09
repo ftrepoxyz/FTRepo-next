@@ -1,6 +1,10 @@
 import { DownloadedIpa } from "@prisma/client";
 import { TweakConfig } from "@/types/config";
-import { getLatestPerCompositeKey, buildDisplayName } from "./grouping";
+import {
+  AppNameOverrideMaps,
+  getLatestPerCompositeKey,
+  resolveDisplayName,
+} from "./grouping";
 
 interface ESignRepo {
   name: string;
@@ -30,13 +34,20 @@ export function generateESignJson(
   ipas: DownloadedIpa[],
   source: { name: string; tintColor: string },
   knownTweaks: TweakConfig[],
-  channelPriorities?: Map<string, number>
+  channelPriorities?: Map<string, number>,
+  overrides?: AppNameOverrideMaps
 ): string {
   const latestByKey = getLatestPerCompositeKey(ipas, knownTweaks, channelPriorities);
   const apps: ESignApp[] = [];
 
-  for (const { ipa, matchedTweak } of latestByKey) {
-    const displayName = buildDisplayName(ipa.appName, matchedTweak);
+  for (const { ipa, matchedTweak, groupKey } of latestByKey) {
+    const displayName = resolveDisplayName({
+      appName: ipa.appName,
+      groupKey,
+      matchedTweak,
+      overrides,
+      feed: "global",
+    });
     apps.push({
       name: displayName,
       version: ipa.version,

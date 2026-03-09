@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { withAuth } from "@/lib/auth";
+import { getSettings } from "@/lib/config";
 import { deleteReleaseAsset, getRelease, deleteRelease } from "@/lib/github/releases";
 import { generateAllJson } from "@/lib/json/generator";
+import { getVariantMeta, type RenameScope } from "@/lib/json/grouping";
 import { logger } from "@/lib/logger";
 
 interface Deletion {
@@ -12,7 +14,10 @@ interface Deletion {
 }
 
 interface Rename {
-  dbId: number;
+  groupKey: string;
+  bundleId: string;
+  matchedTweak: string | null;
+  scope: RenameScope;
   appName: string;
 }
 
@@ -62,7 +67,6 @@ export const POST = withAuth(async (request) => {
     let deletedCount = 0;
     let releasesCleanedUp = 0;
 
-    // Phase 1: Process deletions — delete GitHub assets directly by assetId
     if (deletions.length > 0) {
       const affectedReleaseIds = new Set<number>();
 
@@ -80,14 +84,13 @@ export const POST = withAuth(async (request) => {
         }
       }
 
-      // Clean up empty releases
       for (const releaseId of affectedReleaseIds) {
         try {
           const release = await getRelease(releaseId);
           if (!release) continue;
 
-          const hasIpaAssets = release.assets.some((a) =>
-            a.name.toLowerCase().endsWith(".ipa")
+          const hasIpaAssets = release.assets.some((asset) =>
+            asset.name.toLowerCase().endsWith(".ipa")
           );
           if (!hasIpaAssets) {
             await deleteRelease(releaseId);
@@ -102,9 +105,8 @@ export const POST = withAuth(async (request) => {
         }
       }
 
-      // Delete matching database records
       const dbIds = deletions
-        .map((d) => d.dbId)
+        .map((deletion) => deletion.dbId)
         .filter((id): id is number => id !== null);
 
       if (dbIds.length > 0) {
@@ -114,25 +116,82 @@ export const POST = withAuth(async (request) => {
       }
     }
 
-    // Phase 2: Process renames
     let renamedCount = 0;
     if (renames.length > 0) {
-      for (const { dbId, appName } of renames) {
+      const settings = await getSettings();
+
+      for (const rename of renames) {
+        const appName = rename.appName.trim();
+        if (!appName) continue;
+
         try {
-          await prisma.downloadedIpa.update({
-            where: { id: dbId },
-            data: { appName },
+          await prisma.feedAppOverride.upsert({
+            where: {
+              feed_groupKey: {
+                feed: rename.scope,
+                groupKey: rename.groupKey,
+              },
+            },
+            update: {
+              bundleId: rename.bundleId,
+              matchedTweak: rename.matchedTweak,
+              appName,
+            },
+            create: {
+              feed: rename.scope,
+              groupKey: rename.groupKey,
+              bundleId: rename.bundleId,
+              matchedTweak: rename.matchedTweak,
+              appName,
+            },
           });
+
+          if (rename.scope === "global") {
+            const bundleRows = await prisma.downloadedIpa.findMany({
+              where: { bundleId: rename.bundleId },
+              select: {
+                id: true,
+                bundleId: true,
+                appName: true,
+                tweaks: true,
+                isTweaked: true,
+                channelId: true,
+              },
+            });
+
+            const matchingIds = bundleRows
+              .filter((row) => {
+                const tweaks = (row.tweaks as string[]) || [];
+                return (
+                  getVariantMeta(
+                    row.bundleId,
+                    row.appName,
+                    tweaks,
+                    row.isTweaked,
+                    settings.known_tweaks,
+                    row.channelId
+                  ).groupKey === rename.groupKey
+                );
+              })
+              .map((row) => row.id);
+
+            if (matchingIds.length > 0) {
+              await prisma.downloadedIpa.updateMany({
+                where: { id: { in: matchingIds } },
+                data: { appName },
+              });
+            }
+          }
+
           renamedCount++;
         } catch (e) {
-          await logger.warn("cleanup", `Failed to rename IPA ${dbId}`, {
+          await logger.warn("cleanup", `Failed to rename variant ${rename.groupKey}`, {
             error: String(e),
           });
         }
       }
     }
 
-    // Phase 3: Regenerate and publish all JSON source files
     const result = await generateAllJson(true);
     if (!result.published) {
       const error = "Changes were applied, but publishing the JSON source files did not complete";

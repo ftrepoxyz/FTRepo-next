@@ -6,7 +6,7 @@ import { generateESignJson } from "./esign";
 import { generateScarletJson } from "./scarlet";
 import { generateFeatherJson } from "./feather";
 import { publishAllJsonFiles } from "../github/json-publisher";
-import { groupByCompositeKey } from "./grouping";
+import { buildAppNameOverrideMaps, groupByCompositeKey } from "./grouping";
 
 export interface GenerationResult {
   altstore: string;
@@ -54,16 +54,40 @@ export async function generateAllJson(
 
   await logger.info("generate", `Generating JSON for ${ipas.length} IPAs`);
 
+  const overrides = buildAppNameOverrideMaps(
+    await prisma.feedAppOverride.findMany({
+      select: {
+        feed: true,
+        groupKey: true,
+        appName: true,
+      },
+    })
+  );
+
   const altstore = generateAltStoreJson(
     ipas,
     source,
     maxVersions,
     knownTweaks,
-    true
+    true,
+    overrides,
+    "global"
   );
-  const esign = generateESignJson(ipas, source, knownTweaks, channelPriorities);
-  const scarlet = generateScarletJson(ipas, source, knownTweaks, channelPriorities);
-  const feather = generateFeatherJson(ipas, source, maxVersions, knownTweaks);
+  const esign = generateESignJson(
+    ipas,
+    source,
+    knownTweaks,
+    channelPriorities,
+    overrides
+  );
+  const scarlet = generateScarletJson(
+    ipas,
+    source,
+    knownTweaks,
+    channelPriorities,
+    overrides
+  );
+  const feather = generateFeatherJson(ipas, source, maxVersions, knownTweaks, overrides);
 
   // Count unique apps using composite keys
   const compositeGroups = groupByCompositeKey(ipas, knownTweaks);

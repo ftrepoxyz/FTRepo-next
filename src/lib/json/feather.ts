@@ -1,5 +1,6 @@
 import { DownloadedIpa } from "@prisma/client";
 import { TweakConfig } from "@/types/config";
+import { AppNameOverrideMaps } from "./grouping";
 import { generateAltStoreJson } from "./altstore";
 
 /**
@@ -10,8 +11,17 @@ export function generateFeatherJson(
   ipas: DownloadedIpa[],
   source: { name: string; iconURL?: string },
   maxVersions: number,
-  knownTweaks: TweakConfig[]
+  knownTweaks: TweakConfig[],
+  overrides?: AppNameOverrideMaps
 ): string {
   // Feather uses the same format as AltStore
-  return generateAltStoreJson(ipas, source, maxVersions, knownTweaks, false);
+  return generateAltStoreJson(
+    ipas,
+    source,
+    maxVersions,
+    knownTweaks,
+    false,
+    overrides,
+    "feather"
+  );
 }

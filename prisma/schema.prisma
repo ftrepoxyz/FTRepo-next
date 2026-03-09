@@ -62,6 +62,21 @@ model DownloadedIpa {
   @@map("downloaded_ipas")
 }
 
+model FeedAppOverride {
+  id           Int      @id @default(autoincrement())
+  feed         String
+  groupKey     String   @map("group_key")
+  bundleId     String   @map("bundle_id")
+  matchedTweak String?  @map("matched_tweak")
+  appName      String   @map("app_name")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@unique([feed, groupKey])
+  @@index([bundleId])
+  @@map("feed_app_overrides")
+}
+
 model AppStoreCache {
   id         Int      @id @default(autoincrement())
   bundleId   String   @unique @map("bundle_id")
