@@ -55,10 +55,12 @@ interface FeatherApp {
 }
 
 /**
- * Parse an IPA asset filename to extract bundleId and version.
+ * Parse an IPA asset filename to extract bundleId, tweak slug, and version.
  * Format: `${bundleId}${tweakSlug}_${version}.ipa`
  */
-function parseAssetName(name: string): { bundleId: string; version: string } | null {
+function parseAssetName(
+  name: string
+): { bundleId: string; version: string; tweakSlug: string | null } | null {
   if (!name.toLowerCase().endsWith(".ipa")) return null;
 
   const withoutExt = name.slice(0, -4);
@@ -79,7 +81,10 @@ function parseAssetName(name: string): { bundleId: string; version: string } | n
   }
 
   const bundleId = bundleIdParts.join("_");
-  return { bundleId, version };
+  const tweakParts = parts.slice(bundleIdParts.length);
+  const tweakSlug = tweakParts.length > 0 ? tweakParts.join("_") : null;
+
+  return { bundleId, version, tweakSlug };
 }
 
 function parseFeatherApps(content: string | null): FeatherApp[] {
@@ -163,6 +168,44 @@ function resolvePublishedNames(items: LibraryItem[], featherApps: FeatherApp[]):
   return names;
 }
 
+function resolveFeatherVariant(params: {
+  bundleId: string;
+  downloadUrl: string;
+  parsedTweakSlug: string | null;
+  variant: {
+    groupKey: string;
+    matchedTweak: string | null;
+    renameScope: RenameScope;
+  };
+  featherApps: FeatherApp[];
+}): {
+  groupKey: string;
+  matchedTweak: string | null;
+  renameScope: RenameScope;
+} {
+  const { bundleId, downloadUrl, parsedTweakSlug, variant, featherApps } = params;
+
+  if (variant.matchedTweak || !parsedTweakSlug) {
+    return variant;
+  }
+
+  const bundleApps = featherApps.filter((app) => app.bundleIdentifier === bundleId);
+  if (bundleApps.length <= 1) {
+    return variant;
+  }
+
+  const matchedPublishedApp = bundleApps.find((app) => appUrls(app).has(downloadUrl));
+  if (!matchedPublishedApp) {
+    return variant;
+  }
+
+  return {
+    groupKey: `${bundleId}::${parsedTweakSlug}`,
+    matchedTweak: parsedTweakSlug,
+    renameScope: "feather",
+  };
+}
+
 export const GET = withAuth(async () => {
   try {
     const settings = await getSettings();
@@ -203,6 +246,7 @@ export const GET = withAuth(async () => {
 
     const dbByAssetId = new Map(dbRecords.map((record) => [record.githubAssetId!, record]));
     const overrides = buildAppNameOverrideMaps(overrideRows);
+    const featherApps = parseFeatherApps(featherRaw);
 
     const baseItems: LibraryItem[] = ipaAssets.map((asset) => {
       const db = dbByAssetId.get(asset.assetId);
@@ -210,7 +254,7 @@ export const GET = withAuth(async () => {
       const bundleId = db?.bundleId ?? parsed?.bundleId ?? "";
       const appName = db?.appName ?? parsed?.bundleId ?? asset.assetName;
       const tweaks = db ? ((db.tweaks as string[]) || []) : [];
-      const variant = getVariantMeta(
+      const baseVariant = getVariantMeta(
         bundleId,
         appName,
         tweaks,
@@ -218,6 +262,13 @@ export const GET = withAuth(async () => {
         settings.known_tweaks,
         db?.channelId
       );
+      const variant = resolveFeatherVariant({
+        bundleId,
+        downloadUrl: asset.downloadUrl,
+        parsedTweakSlug: parsed?.tweakSlug ?? null,
+        variant: baseVariant,
+        featherApps,
+      });
 
       return {
         assetId: asset.assetId,
@@ -241,7 +292,7 @@ export const GET = withAuth(async () => {
       };
     });
 
-    const publishedNames = resolvePublishedNames(baseItems, parseFeatherApps(featherRaw));
+    const publishedNames = resolvePublishedNames(baseItems, featherApps);
     const items = baseItems.map((item) => ({
       ...item,
       displayName: resolveDisplayName({
