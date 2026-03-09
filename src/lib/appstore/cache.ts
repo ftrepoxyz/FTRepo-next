@@ -1,5 +1,6 @@
 import { prisma } from "../db";
 import { lookupApp } from "./lookup";
+import { enhanceAppleScreenshotUrls } from "./images";
 import { AppStoreLookup } from "@/types/models";
 
 const CACHE_DAYS = 30;
@@ -14,11 +15,12 @@ export async function getCachedLookup(bundleId: string): Promise<AppStoreLookup 
   });
 
   if (cached && new Date() < cached.expiresAt) {
+    const screenshots = enhanceAppleScreenshotUrls(cached.screenshots);
     return {
       bundleId: cached.bundleId,
       appName: cached.appName || "",
       iconUrl: cached.iconUrl || "",
-      screenshots: (cached.screenshots as string[]) || [],
+      screenshots,
       description: cached.description || "",
       developer: cached.developer || "",
       genre: cached.genre || "",
@@ -30,6 +32,7 @@ export async function getCachedLookup(bundleId: string): Promise<AppStoreLookup 
   // Fetch from API
   const result = await lookupApp(bundleId);
   if (!result) return null;
+  const screenshots = enhanceAppleScreenshotUrls(result.screenshots);
 
   // Update cache
   const expiresAt = new Date();
@@ -40,7 +43,7 @@ export async function getCachedLookup(bundleId: string): Promise<AppStoreLookup 
     update: {
       appName: result.appName,
       iconUrl: result.iconUrl,
-      screenshots: result.screenshots,
+      screenshots,
       description: result.description,
       developer: result.developer,
       genre: result.genre,
@@ -54,7 +57,7 @@ export async function getCachedLookup(bundleId: string): Promise<AppStoreLookup 
       bundleId,
       appName: result.appName,
       iconUrl: result.iconUrl,
-      screenshots: result.screenshots,
+      screenshots,
       description: result.description,
       developer: result.developer,
       genre: result.genre,
@@ -65,7 +68,10 @@ export async function getCachedLookup(bundleId: string): Promise<AppStoreLookup 
     },
   });
 
-  return result;
+  return {
+    ...result,
+    screenshots,
+  };
 }
 
 /**

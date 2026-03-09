@@ -1,5 +1,6 @@
 import { DownloadedIpa } from "@prisma/client";
 import { TweakConfig } from "@/types/config";
+import { enhanceAppleScreenshotUrls } from "../appstore/images";
 import {
   AppNameOverrideMaps,
   getLatestPerCompositeKey,
@@ -61,7 +62,7 @@ export function generateScarletJson(
       icon: ipa.iconUrl || "",
       description: ipa.description || ipa.appName,
       developer: ipa.developerName || "Unknown Developer",
-      screenshots: (ipa.screenshotUrls as string[]) || [],
+      screenshots: enhanceAppleScreenshotUrls(ipa.screenshotUrls),
       accentColor: {
         light: rgbColor,
       },

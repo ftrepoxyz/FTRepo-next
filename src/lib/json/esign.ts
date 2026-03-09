@@ -1,5 +1,6 @@
 import { DownloadedIpa } from "@prisma/client";
 import { TweakConfig } from "@/types/config";
+import { enhanceAppleScreenshotUrls } from "../appstore/images";
 import {
   AppNameOverrideMaps,
   getLatestPerCompositeKey,
@@ -58,7 +59,7 @@ export function generateESignJson(
       bundleIdentifier: ipa.bundleId,
       iconURL: ipa.iconUrl || "",
       localizedDescription: ipa.description || ipa.appName,
-      screenshotURLs: (ipa.screenshotUrls as string[]) || [],
+      screenshotURLs: enhanceAppleScreenshotUrls(ipa.screenshotUrls),
       tintColor: source.tintColor,
     });
   }

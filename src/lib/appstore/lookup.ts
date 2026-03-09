@@ -1,4 +1,5 @@
 import { getSettings } from "../config";
+import { enhanceAppleScreenshotUrls } from "./images";
 import { AppStoreLookup } from "@/types/models";
 
 interface iTunesResult {
@@ -39,7 +40,7 @@ export async function lookupApp(bundleId: string): Promise<AppStoreLookup | null
       bundleId: result.bundleId,
       appName: result.trackName,
       iconUrl: result.artworkUrl512 || result.artworkUrl100 || "",
-      screenshots: result.screenshotUrls || [],
+      screenshots: enhanceAppleScreenshotUrls(result.screenshotUrls || []),
       description: result.description || "",
       developer: result.artistName || "",
       genre: result.primaryGenreName || "",

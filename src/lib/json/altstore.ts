@@ -5,6 +5,7 @@ import {
   AltStoreVersion,
   TweakConfig,
 } from "@/types/config";
+import { enhanceAppleScreenshotUrls } from "../appstore/images";
 import {
   AppNameOverrideMaps,
   groupByCompositeKey,
@@ -26,11 +27,7 @@ function normalizeScreenshots(screenshotUrls: unknown): AltStoreScreenshot[] {
 }
 
 function normalizeScreenshotUrls(screenshotUrls: unknown): string[] {
-  if (!Array.isArray(screenshotUrls)) return [];
-
-  return screenshotUrls.filter(
-    (url): url is string => typeof url === "string" && url.length > 0
-  );
+  return enhanceAppleScreenshotUrls(screenshotUrls);
 }
 
 /**
