@@ -107,14 +107,13 @@ function UnsavedBanner({
   return (
     <div
       role="status"
-      className="sticky top-0 z-40 mb-4 flex items-center justify-between gap-4 rounded-lg border border-border bg-muted px-4 py-3"
+      className="sticky top-0 z-40 mb-4 flex items-center justify-between gap-4 rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-3"
     >
-      <div className="flex items-center gap-2">
-        <AlertCircle className="h-4 w-4 shrink-0 text-yellow-500" />
-        <p className="text-sm font-medium">Unsaved changes</p>
-      </div>
+      <span className="text-sm font-medium text-amber-600 dark:text-amber-400">
+        Unsaved changes
+      </span>
       <div className="flex items-center gap-2 shrink-0">
-        <Button variant="ghost" size="sm" onClick={onDiscard}>
+        <Button variant="outline" size="sm" onClick={onDiscard}>
           <Undo2 className="mr-1.5 h-3.5 w-3.5" />
           Discard
         </Button>

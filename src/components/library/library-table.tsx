@@ -533,7 +533,10 @@ export function LibraryTable() {
                 {pendingCount} pending change{pendingCount !== 1 ? "s" : ""}
               </span>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={clearAllPending}>Discard All</Button>
+                <Button variant="outline" size="sm" onClick={clearAllPending}>
+                  <Undo2 className="mr-1.5 h-3 w-3" />
+                  Discard All
+                </Button>
                 <Button size="sm" onClick={handleApply} disabled={applying}>
                   {applying && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Apply Changes
