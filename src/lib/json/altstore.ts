@@ -1,5 +1,10 @@
 import { DownloadedIpa } from "@prisma/client";
-import { AltStoreApp, AltStoreVersion, TweakConfig } from "@/types/config";
+import {
+  AltStoreApp,
+  AltStoreScreenshot,
+  AltStoreVersion,
+  TweakConfig,
+} from "@/types/config";
 import {
   AppNameOverrideMaps,
   groupByCompositeKey,
@@ -10,6 +15,14 @@ interface AltStoreRepo {
   name: string;
   identifier: string;
   apps: AltStoreApp[];
+}
+
+function normalizeScreenshots(screenshotUrls: unknown): AltStoreScreenshot[] {
+  if (!Array.isArray(screenshotUrls)) return [];
+
+  return screenshotUrls
+    .filter((url): url is string => typeof url === "string" && url.length > 0)
+    .map((imageURL) => ({ imageURL }));
 }
 
 /**
@@ -60,6 +73,7 @@ export function generateAltStoreJson(
       developerName: latest.developerName || "Unknown Developer",
       iconURL: latest.iconUrl || source.iconURL || "https://placehold.co/128",
       localizedDescription: latest.description || latest.appName,
+      screenshots: normalizeScreenshots(latest.screenshotUrls),
       versions,
       appPermissions: {},
       version: latestVersion.version,

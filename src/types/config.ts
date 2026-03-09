@@ -4,12 +4,17 @@ export interface AltStoreApp {
   developerName: string;
   localizedDescription: string;
   iconURL: string;
+  screenshots: AltStoreScreenshot[];
   versions: AltStoreVersion[];
   appPermissions: Record<string, never>;
   version: string;
   versionDate: string;
   size: number;
   downloadURL: string | null;
+}
+
+export interface AltStoreScreenshot {
+  imageURL: string;
 }
 
 export interface AltStoreVersion {
