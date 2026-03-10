@@ -39,6 +39,10 @@ function mapStatus(runtime: TelegramRuntimeState): TelegramStatusSnapshot {
     busy: runtime.currentCommandId !== null,
     sessionReady: runtime.sessionReady,
     currentCommandId: runtime.currentCommandId,
+    currentCommandType: (runtime.currentCommandType as TelegramCommandType | null) ?? null,
+    progressLabel: runtime.progressLabel,
+    progressCurrent: runtime.progressCurrent,
+    progressTotal: runtime.progressTotal,
     retryCount: runtime.retryCount,
     lastHeartbeatAt,
     lastConnectedAt: runtime.lastConnectedAt?.toISOString() ?? null,
@@ -169,6 +173,10 @@ export async function claimNextTelegramCommand(
     data: {
       owner,
       currentCommandId: next.id,
+      currentCommandType: next.type,
+      progressLabel: null,
+      progressCurrent: null,
+      progressTotal: null,
       lastHeartbeatAt: new Date(),
     },
   });
@@ -196,6 +204,10 @@ export async function completeTelegramCommand(
     where: { id: TELEGRAM_RUNTIME_ID },
     data: {
       currentCommandId: null,
+      currentCommandType: null,
+      progressLabel: null,
+      progressCurrent: null,
+      progressTotal: null,
     },
   });
 }
@@ -217,6 +229,10 @@ export async function failTelegramCommand(
     where: { id: TELEGRAM_RUNTIME_ID },
     data: {
       currentCommandId: null,
+      currentCommandType: null,
+      progressLabel: null,
+      progressCurrent: null,
+      progressTotal: null,
     },
   });
 }
@@ -229,6 +245,10 @@ export async function clearTelegramCurrentCommand(commandId: number): Promise<vo
     },
     data: {
       currentCommandId: null,
+      currentCommandType: null,
+      progressLabel: null,
+      progressCurrent: null,
+      progressTotal: null,
     },
   });
 }

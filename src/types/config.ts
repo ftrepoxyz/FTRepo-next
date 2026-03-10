@@ -121,6 +121,10 @@ export interface TelegramStatusSnapshot {
   busy: boolean;
   sessionReady: boolean;
   currentCommandId: number | null;
+  currentCommandType: TelegramCommandType | null;
+  progressLabel: string | null;
+  progressCurrent: number | null;
+  progressTotal: number | null;
   retryCount: number;
   lastHeartbeatAt: string | null;
   lastConnectedAt: string | null;

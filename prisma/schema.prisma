@@ -127,7 +127,6 @@ model ChannelProgress {
   channelName    String?  @map("channel_name")
   channelDescription String? @map("channel_description")
   lastMessageId  BigInt   @default(0) @map("last_message_id")
-  previousScanMessageId BigInt @default(0) @map("previous_scan_message_id")
   totalMessages  Int      @default(0) @map("total_messages")
   ipaCount       Int      @default(0) @map("ipa_count")
   isActive       Boolean  @default(true) @map("is_active")
@@ -175,6 +174,10 @@ model TelegramRuntimeState {
   lastAuthAt       DateTime? @map("last_auth_at")
   retryCount       Int       @default(0) @map("retry_count")
   currentCommandId Int?      @map("current_command_id")
+  currentCommandType String? @map("current_command_type")
+  progressLabel    String?   @map("progress_label")
+  progressCurrent  Int?      @map("progress_current")
+  progressTotal    Int?      @map("progress_total")
   createdAt        DateTime  @default(now()) @map("created_at")
   updatedAt        DateTime  @updatedAt @map("updated_at")
 

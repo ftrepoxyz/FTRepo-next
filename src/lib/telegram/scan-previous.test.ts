@@ -1,7 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  getPreviousScanStartCursor,
   processPreviousScanBatch,
   type TelegramHistoryMessage,
 } from "./scan-previous";
@@ -29,13 +28,7 @@ function textMessage(id: number): TelegramHistoryMessage {
   };
 }
 
-test("previous scan starts from the saved cursor", () => {
-  assert.equal(getPreviousScanStartCursor(BigInt(4321)), 4321);
-  assert.equal(getPreviousScanStartCursor(0), 0);
-  assert.equal(getPreviousScanStartCursor(null), 0);
-});
-
-test("previous scan advances from the stop point so later runs continue deeper", () => {
+test("previous scan stops on the exact message that hits the IPA target", () => {
   const firstRun = processPreviousScanBatch({
     channelId: "@example",
     messages: [ipaMessage(300), textMessage(299), ipaMessage(298), ipaMessage(297)],
@@ -52,11 +45,13 @@ test("previous scan advances from the stop point so later runs continue deeper",
     firstRun.collectedMessages.map((message) => message.messageId),
     [300, 299, 298]
   );
+});
 
+test("previous scan can resume the next batch without skipping the remaining messages", () => {
   const secondRun = processPreviousScanBatch({
     channelId: "@example",
     messages: [ipaMessage(298), ipaMessage(297), textMessage(296), ipaMessage(295)],
-    processedMessageIds: new Set<number>([300, 298]),
+    processedMessageIds: new Set<number>([298]),
     disabledTopicIds: new Set<number>(),
     ipaTarget: 2,
     ipasSeen: 0,

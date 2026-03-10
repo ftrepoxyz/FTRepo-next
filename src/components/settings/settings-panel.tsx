@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Progress } from "@/components/ui/progress";
 import {
   Dialog,
   DialogContent,
@@ -84,6 +85,10 @@ const DEFAULT_TELEGRAM_AUTH: TelegramStatusSnapshot = {
   busy: false,
   sessionReady: false,
   currentCommandId: null,
+  currentCommandType: null,
+  progressLabel: null,
+  progressCurrent: null,
+  progressTotal: null,
   retryCount: 0,
   lastHeartbeatAt: null,
   lastConnectedAt: null,
@@ -650,6 +655,7 @@ export function SettingsPanel() {
       const data = await res.json();
       if (data.success) {
         toast.success(data.message || `${action} completed`);
+        loadTelegramAuth();
       } else {
         toast.error(data.error || `${action} failed`);
       }
@@ -665,6 +671,16 @@ export function SettingsPanel() {
       ))}
     </div>;
   }
+
+  const scanPreviousProgressCurrent = telegramAuth.progressCurrent ?? 0;
+  const scanPreviousProgressTotal = telegramAuth.progressTotal ?? 0;
+  const scanPreviousProgressValue =
+    scanPreviousProgressTotal > 0
+      ? Math.min(
+          100,
+          Math.round((scanPreviousProgressCurrent / scanPreviousProgressTotal) * 100)
+        )
+      : 0;
 
   return (
     <>
@@ -1526,7 +1542,25 @@ export function SettingsPanel() {
           <CardHeader>
             <CardTitle>Scraper</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            {telegramAuth.busy && telegramAuth.currentCommandType === "scan_previous" && (
+              <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium">Scan Previous in progress</p>
+                    <p className="text-xs text-muted-foreground">
+                      {telegramAuth.progressLabel || "Scanning older Telegram history..."}
+                    </p>
+                  </div>
+                  <div className="text-right text-xs text-muted-foreground">
+                    {scanPreviousProgressTotal > 0
+                      ? `${scanPreviousProgressCurrent}/${scanPreviousProgressTotal} IPAs`
+                      : "Starting..."}
+                  </div>
+                </div>
+                <Progress value={scanPreviousProgressValue} className="mt-3 h-2" />
+              </div>
+            )}
             <div className="grid gap-3 sm:grid-cols-2">
               <Button
                 variant="outline"

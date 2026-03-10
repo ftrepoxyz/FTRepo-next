@@ -64,7 +64,6 @@ export const POST = withAuth(async () => {
     await prisma.channelProgress.updateMany({
       data: {
         lastMessageId: BigInt(0),
-        previousScanMessageId: BigInt(0),
         totalMessages: 0,
         ipaCount: 0,
       },

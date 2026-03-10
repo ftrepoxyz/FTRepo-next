@@ -219,10 +219,49 @@ export class TelegramService {
         const client = await this.ensureOperationalClient();
         const settings = await getSettings();
         const channels = await getTelegramChannels();
+        const totalTarget = channels.length * settings.previous_ipa_scan_amount;
+        let totalFound = 0;
+
+        await this.setCommandProgress(
+          "Preparing Scan Previous...",
+          0,
+          totalTarget
+        );
+
         for (const channelId of channels) {
-          await scanChannelPrevious(client, channelId, settings.previous_ipa_scan_amount);
+          await this.setCommandProgress(
+            `Scanning ${channelId} for ${settings.previous_ipa_scan_amount} older IPA(s)...`,
+            totalFound,
+            totalTarget
+          );
+
+          const result = await scanChannelPrevious(
+            client,
+            channelId,
+            settings.previous_ipa_scan_amount,
+            async (progress) => {
+              await this.setCommandProgress(
+                `Scanning ${progress.channelId}: ${progress.ipasSeen}/${settings.previous_ipa_scan_amount} IPA(s) found after ${progress.batchesScanned} batch(es)`,
+                totalFound + progress.ipasSeen,
+                totalTarget
+              );
+            }
+          );
+
+          totalFound += result.ipaMessages;
         }
-        return { state: this.currentState };
+
+        await this.setCommandProgress(
+          `Scan Previous finished: found ${totalFound} IPA(s)`,
+          totalFound,
+          totalTarget
+        );
+
+        return {
+          state: this.currentState,
+          found: totalFound,
+          target: totalTarget,
+        };
       }
       case "refresh_topics": {
         const channelId = String(payload.channelId ?? "");
@@ -606,5 +645,19 @@ export class TelegramService {
     };
 
     await updateTelegramRuntimeState(data);
+  }
+
+  private async setCommandProgress(
+    label: string | null,
+    current: number | null,
+    total: number | null
+  ): Promise<void> {
+    await updateTelegramRuntimeState({
+      owner: this.owner,
+      progressLabel: label,
+      progressCurrent: current,
+      progressTotal: total,
+      lastHeartbeatAt: new Date(),
+    });
   }
 }

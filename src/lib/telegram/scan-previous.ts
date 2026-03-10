@@ -44,15 +44,6 @@ export interface ProcessPreviousScanBatchResult {
   shouldStop: boolean;
 }
 
-export function getPreviousScanStartCursor(
-  previousScanMessageId: bigint | number | null | undefined
-): number {
-  if (typeof previousScanMessageId === "bigint") {
-    return Number(previousScanMessageId);
-  }
-  return Number(previousScanMessageId ?? 0);
-}
-
 export function processPreviousScanBatch({
   channelId,
   messages,

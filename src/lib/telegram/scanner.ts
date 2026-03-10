@@ -4,7 +4,6 @@ import { logger } from "../logger";
 import { resolveChannelInfo } from "./channel-info";
 import { parseForumTopics } from "./forum-topics";
 import {
-  getPreviousScanStartCursor,
   processPreviousScanBatch,
   type TelegramHistoryMessage,
 } from "./scan-previous";
@@ -214,10 +213,17 @@ export async function scanChannel(
 export async function scanChannelPrevious(
   client: TdlClient,
   channelId: string,
-  ipaTarget: number
-): Promise<{ newMessages: number; ipaMessages: number }> {
+  ipaTarget: number,
+  onProgress?: (progress: {
+    channelId: string;
+    ipasSeen: number;
+    batchesScanned: number;
+    currentCursor: number;
+  }) => Promise<void> | void
+): Promise<{ newMessages: number; ipaMessages: number; batchesScanned: number }> {
   let newMessages = 0;
   let ipaMessages = 0;
+  let batchesScanned = 0;
 
   let progress = await prisma.channelProgress.findUnique({
     where: { channelId },
@@ -237,7 +243,7 @@ export async function scanChannelPrevious(
 
     if (!chat || chat._ !== "chat") {
       await logger.warn("scan", `Channel not found: ${channelId}`);
-      return { newMessages: 0, ipaMessages: 0 };
+      return { newMessages: 0, ipaMessages: 0, batchesScanned: 0 };
     }
 
     await resolveChannelInfo(channelId, client);
@@ -245,7 +251,7 @@ export async function scanChannelPrevious(
     progress = await prisma.channelProgress.findUnique({
       where: { channelId },
     });
-    if (!progress) return { newMessages: 0, ipaMessages: 0 };
+    if (!progress) return { newMessages: 0, ipaMessages: 0, batchesScanned: 0 };
 
     const disabledTopicIds = new Set<number>();
     if (progress.isForum) {
@@ -254,18 +260,18 @@ export async function scanChannelPrevious(
       }
     }
 
-    const startCursor = getPreviousScanStartCursor(progress.previousScanMessageId);
-    let fromMessageId = startCursor;
+    let fromMessageId = 0;
     let hasMore = true;
     let ipasSeen = 0; // counts only NEW (unprocessed) IPAs found
     const collectedMessages: CollectedMessage[] = [];
 
     await logger.info(
       "scan",
-      `Scan Previous ${channelId}: starting from cursor ${startCursor} with target ${ipaTarget} IPA(s)`
+      `Scan Previous ${channelId}: scanning older history in batches until ${ipaTarget} IPA(s) are found`
     );
 
     while (hasMore) {
+      batchesScanned++;
       const fetchLimit = 100;
 
       const history = (await client.invoke({
@@ -317,6 +323,13 @@ export async function scanChannelPrevious(
       ipasSeen = batchResult.ipasSeen;
       fromMessageId = batchResult.nextCursor || fromMessageId;
 
+      await onProgress?.({
+        channelId,
+        ipasSeen,
+        batchesScanned,
+        currentCursor: fromMessageId,
+      });
+
       if (messages.length < fetchLimit) hasMore = false;
       if (batchResult.shouldStop) hasMore = false;
     }
@@ -341,7 +354,6 @@ export async function scanChannelPrevious(
       where: { channelId },
       data: {
         lastMessageId: fromMessageId,
-        previousScanMessageId: BigInt(fromMessageId),
         totalMessages: { increment: newMessages },
         ipaCount: { increment: ipaMessages },
         lastScannedAt: new Date(),
@@ -350,7 +362,7 @@ export async function scanChannelPrevious(
 
     await logger.success(
       "scan",
-      `Scan Previous ${channelId}: ${newMessages} new messages, ${ipaMessages} new IPAs found (cursor ${startCursor} -> ${fromMessageId}, scanned until ${ipasSeen} IPA(s) seen)`
+      `Scan Previous ${channelId}: ${newMessages} new messages, ${ipaMessages} new IPAs found in ${batchesScanned} batch(es)`
     );
   } catch (e) {
     await logger.error("scan", `Failed to scan previous ${channelId}`, {
@@ -358,5 +370,9 @@ export async function scanChannelPrevious(
     });
   }
 
-  return { newMessages, ipaMessages };
+  return {
+    newMessages,
+    ipaMessages,
+    batchesScanned,
+  };
 }
