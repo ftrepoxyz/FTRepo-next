@@ -127,6 +127,7 @@ model ChannelProgress {
   channelName    String?  @map("channel_name")
   channelDescription String? @map("channel_description")
   lastMessageId  BigInt   @default(0) @map("last_message_id")
+  previousScanMessageId BigInt @default(0) @map("previous_scan_message_id")
   totalMessages  Int      @default(0) @map("total_messages")
   ipaCount       Int      @default(0) @map("ipa_count")
   isActive       Boolean  @default(true) @map("is_active")
