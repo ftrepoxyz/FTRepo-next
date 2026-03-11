@@ -273,6 +273,7 @@ export async function scanChannelPrevious(
     while (hasMore) {
       batchesScanned++;
       const fetchLimit = 100;
+      const previousCursor = fromMessageId;
 
       const history = (await client.invoke({
         _: "getChatHistory",
@@ -330,8 +331,10 @@ export async function scanChannelPrevious(
         currentCursor: fromMessageId,
       });
 
-      if (messages.length < fetchLimit) hasMore = false;
       if (batchResult.shouldStop) hasMore = false;
+      if (fromMessageId === previousCursor) {
+        hasMore = false;
+      }
     }
 
     // Batch-write all collected messages to the database
