@@ -3,6 +3,7 @@ import { deleteReleaseAsset, getRelease, deleteRelease } from "./releases";
 import { logger } from "../logger";
 import { getSettings } from "../config";
 import { matchTweak } from "@/lib/ipa/tweak-matcher";
+import { shouldKeepIpaForLockedChannel } from "@/lib/json/grouping";
 
 interface CleanupResult {
   deletedReleases: number;
@@ -29,6 +30,10 @@ export async function cleanupReleases(): Promise<CleanupResult> {
 
     const grouped = new Map<string, typeof allIpas>();
     for (const ipa of allIpas) {
+      if (!shouldKeepIpaForLockedChannel(ipa, knownTweaks)) {
+        continue;
+      }
+
       const tweaks = (ipa.tweaks as string[]) || [];
       const { groupKey } = matchTweak(ipa.bundleId, ipa.appName, tweaks, ipa.isTweaked, knownTweaks, ipa.channelId);
       const list = grouped.get(groupKey) || [];
@@ -131,6 +136,10 @@ export async function enforceVersionLimit(
   });
 
   const groupIpas = allIpas.filter((ipa) => {
+    if (!shouldKeepIpaForLockedChannel(ipa, knownTweaks)) {
+      return false;
+    }
+
     const t = (ipa.tweaks as string[]) || [];
     const result = matchTweak(ipa.bundleId, ipa.appName, t, ipa.isTweaked, knownTweaks, ipa.channelId);
     return result.groupKey === groupKey;

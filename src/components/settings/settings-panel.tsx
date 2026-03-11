@@ -858,14 +858,14 @@ export function SettingsPanel() {
                 </p>
               </div>
               <div className="space-y-2">
-                <Label>Previous IPA Scan Amount</Label>
+                <Label>Previous IPA Scan Amount (per channel)</Label>
                 <NumberInput
                   value={Number(settings.previous_ipa_scan_amount) || 50}
                   min={1}
                   onChange={(v) => updateSetting("previous_ipa_scan_amount", v)}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Number of IPAs to find when running Scan Previous
+                  Number of IPAs to find per channel when running Scan Previous
                 </p>
               </div>
               <div className="space-y-2">
@@ -1549,15 +1549,19 @@ export function SettingsPanel() {
                   <div>
                     <p className="text-sm font-medium">Scan Previous in progress</p>
                     <p className="text-xs text-muted-foreground">
-                      {telegramAuth.progressLabel || "Scanning older Telegram history..."}
+                      {telegramAuth.progressLabel ||
+                        "Scanning older Telegram history using the per-channel target from General settings..."}
                     </p>
                   </div>
                   <div className="text-right text-xs text-muted-foreground">
                     {scanPreviousProgressTotal > 0
-                      ? `${scanPreviousProgressCurrent}/${scanPreviousProgressTotal} IPAs`
+                      ? `${scanPreviousProgressCurrent}/${scanPreviousProgressTotal} IPAs overall`
                       : "Starting..."}
                   </div>
                 </div>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  The Previous IPA Scan Amount setting applies per channel.
+                </p>
                 <Progress value={scanPreviousProgressValue} className="mt-3 h-2" />
               </div>
             )}

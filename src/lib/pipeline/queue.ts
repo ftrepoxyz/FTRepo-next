@@ -50,6 +50,20 @@ export async function markCompleted(id: number): Promise<void> {
 }
 
 /**
+ * Mark a queue entry as skipped with an optional reason.
+ */
+export async function markSkipped(id: number, reason?: string): Promise<void> {
+  await prisma.processedMessage.update({
+    where: { id },
+    data: {
+      status: "skipped",
+      error: reason ?? null,
+      updatedAt: new Date(),
+    },
+  });
+}
+
+/**
  * Mark a queue entry as failed with an error message.
  */
 export async function markFailed(id: number, error: string): Promise<void> {

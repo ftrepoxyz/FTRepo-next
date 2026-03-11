@@ -6,11 +6,11 @@ import { extractIpa } from "../ipa/extractor";
 import { cachePrivacyDescriptions } from "../ipa/privacy";
 import { getCachedLookup } from "../appstore/cache";
 import { uploadIpaToDailyRelease, deleteReleaseAsset } from "../github/releases";
-import { claimNextPending, markCompleted, markFailed } from "./queue";
+import { claimNextPending, markCompleted, markFailed, markSkipped } from "./queue";
 import { downloadIpaFromMessage } from "../telegram/downloader";
 import { getSettings } from "../config";
 import { enforceVersionLimit } from "../github/cleanup";
-import { matchTweak } from "../ipa/tweak-matcher";
+import { findLockedChannelTweak, matchTweak } from "../ipa/tweak-matcher";
 
 /**
  * Main processing pipeline:
@@ -79,6 +79,26 @@ export async function processNextIpa(
       await cachePrivacyDescriptions(metadata.privacyInfo);
     }
 
+    const settings = await getSettings();
+    const lockedTweak = findLockedChannelTweak(
+      metadata.appName,
+      metadata.tweaks,
+      settings.known_tweaks
+    );
+
+    if (
+      lockedTweak?.lockedChannelId &&
+      lockedTweak.lockedChannelId !== entry.channelId
+    ) {
+      const reason = `${metadata.appName} is locked to ${lockedTweak.lockedChannelId}`;
+      await markSkipped(entry.id, reason);
+      await logger.info(
+        "process",
+        `Skipped ${metadata.appName} from ${entry.channelId}: ${reason}`
+      );
+      return true;
+    }
+
     // Step 4: App Store lookup
     const appStoreData = await getCachedLookup(metadata.bundleId);
 
@@ -107,7 +127,6 @@ export async function processNextIpa(
     // Step 5b: Remove existing IPAs with same composite key + version
     // (keeps only the most recently posted build for each version)
     try {
-      const settings = await getSettings();
       const { groupKey } = matchTweak(
         metadata.bundleId, metadata.appName, metadata.tweaks,
         metadata.isTweaked, settings.known_tweaks, entry.channelId

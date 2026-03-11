@@ -1,5 +1,8 @@
 import { DownloadedIpa } from "@prisma/client";
-import { matchTweak } from "@/lib/ipa/tweak-matcher";
+import {
+  findLockedChannelTweak,
+  matchTweak,
+} from "@/lib/ipa/tweak-matcher";
 import type { TweakConfig } from "@/types/config";
 
 export type RenameScope = "global" | "feather";
@@ -7,6 +10,12 @@ export type RenameScope = "global" | "feather";
 export interface AppNameOverrideMaps {
   global: Map<string, string>;
   feather: Map<string, string>;
+}
+
+interface ChannelLockAwareIpa {
+  appName: string;
+  tweaks: unknown;
+  channelId?: string | null;
 }
 
 /**
@@ -88,6 +97,30 @@ export function buildAppNameOverrideMaps(
   return maps;
 }
 
+export function shouldKeepIpaForLockedChannel(
+  ipa: ChannelLockAwareIpa,
+  knownTweaks: TweakConfig[]
+): boolean {
+  const lockedTweak = findLockedChannelTweak(
+    ipa.appName,
+    Array.isArray(ipa.tweaks) ? (ipa.tweaks as string[]) : [],
+    knownTweaks
+  );
+
+  if (!lockedTweak?.lockedChannelId) {
+    return true;
+  }
+
+  return ipa.channelId === lockedTweak.lockedChannelId;
+}
+
+export function filterIpasForLockedChannels(
+  ipas: DownloadedIpa[],
+  knownTweaks: TweakConfig[]
+): DownloadedIpa[] {
+  return ipas.filter((ipa) => shouldKeepIpaForLockedChannel(ipa, knownTweaks));
+}
+
 /**
  * Build a display name by appending the matched tweak name if not already present.
  */
@@ -139,7 +172,7 @@ export function groupByCompositeKey(
   ipas: DownloadedIpa[],
   knownTweaks: TweakConfig[]
 ): Map<string, GroupedIpas> {
-  const sorted = [...ipas].sort(
+  const sorted = filterIpasForLockedChannels(ipas, knownTweaks).sort(
     (a, b) =>
       compareVersions(b.version, a.version) ||
       b.createdAt.getTime() - a.createdAt.getTime()
@@ -200,7 +233,7 @@ export function getLatestPerCompositeKey(
 ): LatestIpaWithTweak[] {
   const map = new Map<string, LatestIpaWithTweak>();
 
-  for (const ipa of ipas) {
+  for (const ipa of filterIpasForLockedChannels(ipas, knownTweaks)) {
     const tweaks = (ipa.tweaks as string[]) || [];
     const { groupKey, matchedTweak } = getVariantMeta(
       ipa.bundleId,

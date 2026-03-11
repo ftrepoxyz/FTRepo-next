@@ -12,6 +12,56 @@ function getMatchNames(tweak: TweakConfig): string[] {
   return [tweak.name, ...(tweak.aliases || [])];
 }
 
+function sortTweaksBySpecificity(knownTweaks: TweakConfig[]): TweakConfig[] {
+  return [...knownTweaks].sort((a, b) => {
+    const aMax = Math.max(...getMatchNames(a).map((name) => name.length));
+    const bMax = Math.max(...getMatchNames(b).map((name) => name.length));
+    return bMax - aMax;
+  });
+}
+
+function findMatchingKnownTweak(
+  appName: string,
+  tweaks: string[],
+  knownTweaks: TweakConfig[]
+): TweakConfig | null {
+  const sorted = sortTweaksBySpecificity(knownTweaks);
+
+  for (const known of sorted) {
+    for (const matchName of getMatchNames(known)) {
+      const matchLower = matchName.toLowerCase();
+      for (const dylib of tweaks) {
+        if (dylib.toLowerCase() === matchLower) {
+          return known;
+        }
+      }
+    }
+  }
+
+  const appNameLower = appName.toLowerCase();
+  for (const known of sorted) {
+    for (const matchName of getMatchNames(known)) {
+      if (appNameLower.includes(matchName.toLowerCase())) {
+        return known;
+      }
+    }
+  }
+
+  return null;
+}
+
+export function findLockedChannelTweak(
+  appName: string,
+  tweaks: string[],
+  knownTweaks: TweakConfig[]
+): TweakConfig | null {
+  return findMatchingKnownTweak(
+    appName,
+    tweaks,
+    knownTweaks.filter((tweak) => Boolean(tweak.lockedChannelId))
+  );
+}
+
 /**
  * Match an IPA to a known tweak name for composite grouping.
  *
@@ -42,33 +92,12 @@ export function matchTweak(
     (t) => !t.lockedChannelId || t.lockedChannelId === channelId
   );
 
-  // Sort by longest match name descending (more specific names match first)
-  const sorted = [...applicableTweaks].sort((a, b) => {
-    const aMax = Math.max(...getMatchNames(a).map((n) => n.length));
-    const bMax = Math.max(...getMatchNames(b).map((n) => n.length));
-    return bMax - aMax;
-  });
-
-  // First: check tweaks array (dylib names) for case-insensitive exact match
-  for (const known of sorted) {
-    for (const matchName of getMatchNames(known)) {
-      const matchLower = matchName.toLowerCase();
-      for (const dylib of tweaks) {
-        if (dylib.toLowerCase() === matchLower) {
-          return { groupKey: `${bundleId}::${known.name}`, matchedTweak: known.name };
-        }
-      }
-    }
-  }
-
-  // Second: check appName for case-insensitive substring match
-  const appNameLower = appName.toLowerCase();
-  for (const known of sorted) {
-    for (const matchName of getMatchNames(known)) {
-      if (appNameLower.includes(matchName.toLowerCase())) {
-        return { groupKey: `${bundleId}::${known.name}`, matchedTweak: known.name };
-      }
-    }
+  const matchedTweak = findMatchingKnownTweak(appName, tweaks, applicableTweaks);
+  if (matchedTweak) {
+    return {
+      groupKey: `${bundleId}::${matchedTweak.name}`,
+      matchedTweak: matchedTweak.name,
+    };
   }
 
   // No match — use bundleId only

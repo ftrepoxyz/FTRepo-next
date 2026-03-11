@@ -9,6 +9,7 @@ import {
   buildAppNameOverrideMaps,
   getVariantMeta,
   resolveDisplayName,
+  shouldKeepIpaForLockedChannel,
   type RenameScope,
 } from "@/lib/json/grouping";
 
@@ -204,8 +205,22 @@ export const GET = withAuth(async () => {
     const dbByAssetId = new Map(dbRecords.map((record) => [record.githubAssetId!, record]));
     const overrides = buildAppNameOverrideMaps(overrideRows);
 
-    const baseItems: LibraryItem[] = ipaAssets.map((asset) => {
+    const baseItems: LibraryItem[] = ipaAssets.flatMap((asset) => {
       const db = dbByAssetId.get(asset.assetId);
+      if (
+        db &&
+        !shouldKeepIpaForLockedChannel(
+          {
+            appName: db.appName,
+            tweaks: db.tweaks,
+            channelId: db.channelId,
+          },
+          settings.known_tweaks
+        )
+      ) {
+        return [];
+      }
+
       const parsed = parseAssetName(asset.assetName);
       const bundleId = db?.bundleId ?? parsed?.bundleId ?? "";
       const appName = db?.appName ?? parsed?.bundleId ?? asset.assetName;
@@ -219,7 +234,7 @@ export const GET = withAuth(async () => {
         db?.channelId
       );
 
-      return {
+      return [{
         assetId: asset.assetId,
         assetName: asset.assetName,
         downloadUrl: asset.downloadUrl,
@@ -238,7 +253,7 @@ export const GET = withAuth(async () => {
         matchedTweak: variant.matchedTweak,
         renameScope: variant.renameScope,
         displayName: "",
-      };
+      }];
     });
 
     const publishedNames = resolvePublishedNames(baseItems, parseFeatherApps(featherRaw));
