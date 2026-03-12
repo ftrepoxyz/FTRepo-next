@@ -88,6 +88,10 @@ function uniqueTerms(values: string[]): string[] {
   );
 }
 
+function compactSearchTerm(value: string): string {
+  return normalizeIpaSearchTerm(value).replace(/\s+/g, "");
+}
+
 function sortTweaksBySpecificity(tweaks: TweakConfig[]): TweakConfig[] {
   return [...tweaks].sort((a, b) => getSpecificityScore(b) - getSpecificityScore(a));
 }
@@ -124,7 +128,7 @@ export function resolveSearchIpaQuery(
       normalizedQuery,
       resolvedTweakName: exactMatch.name,
       lockedChannelId: exactMatch.lockedChannelId ?? null,
-      searchTerms: uniqueTerms(getMatchNames(exactMatch)),
+      searchTerms: uniqueTerms([...getMatchNames(exactMatch), query]),
     };
   }
 
@@ -145,7 +149,7 @@ export function resolveSearchIpaQuery(
       normalizedQuery,
       resolvedTweakName: substringMatch.name,
       lockedChannelId: substringMatch.lockedChannelId ?? null,
-      searchTerms: uniqueTerms(getMatchNames(substringMatch)),
+      searchTerms: uniqueTerms([...getMatchNames(substringMatch), query]),
     };
   }
 
@@ -172,9 +176,20 @@ function fileNameMatchesSearchTerms(
 ): boolean {
   if (!fileName) return false;
   const normalizedFileName = normalizeIpaSearchTerm(fileName);
+  const compactFileName = compactSearchTerm(fileName);
   if (!normalizedFileName) return false;
 
-  return searchTerms.some((term) => normalizedFileName.includes(term));
+  return searchTerms.some((term) => {
+    const normalizedTerm = normalizeIpaSearchTerm(term);
+    if (!normalizedTerm) {
+      return false;
+    }
+
+    return (
+      normalizedFileName.includes(normalizedTerm) ||
+      compactFileName.includes(compactSearchTerm(normalizedTerm))
+    );
+  });
 }
 
 export function collectMatchingIpaCandidates(params: {

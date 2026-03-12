@@ -71,6 +71,7 @@ test("resolveSearchIpaQuery falls back to the most specific substring tweak", ()
   const substringResult = resolveSearchIpaQuery("oled", knownTweaks);
   assert.equal(substringResult.mode, "known_tweak");
   assert.equal(substringResult.resolvedTweakName, "YouTube OLED");
+  assert.ok(substringResult.searchTerms.includes("oled"));
 });
 
 test("resolveSearchIpaQuery falls back to generic search when no tweak matches", () => {
@@ -118,5 +119,22 @@ test("collectMatchingIpaCandidates uses tweak aliases and ignores disabled forum
   assert.deepEqual(
     candidates.map((candidate) => candidate.messageId),
     [12]
+  );
+});
+
+test("collectMatchingIpaCandidates matches compact filenames against spaced search terms", () => {
+  const candidates = collectMatchingIpaCandidates({
+    channelId: "@apps",
+    messages: [
+      ipaMessage(15, "RedditDeluxe_2026.ipa"),
+      ipaMessage(14, "ApolloPatcher.ipa"),
+    ],
+    disabledTopicIds: new Set<number>(),
+    searchTerms: ["reddit deluxe", "reddit"],
+  });
+
+  assert.deepEqual(
+    candidates.map((candidate) => candidate.messageId),
+    [15]
   );
 });
