@@ -50,6 +50,10 @@ export interface SearchIpaCommandResult {
   failedCount: number;
   searchedChannels: string[];
   groupKey: string | null;
+  batchesScanned: number;
+  totalMessagesExamined: number;
+  ipaFilesSeenInChannel: number;
+  searchTerms: string[];
 }
 
 type CandidateImportResult = {
@@ -534,6 +538,9 @@ export async function searchIpasByName(params: {
   let alreadyPresentCount = 0;
   let importedCount = 0;
   let failedCount = 0;
+  let totalBatchesScanned = 0;
+  let totalMessagesExamined = 0;
+  let totalIpaFilesSeen = 0;
   const searchedChannels: string[] = [];
   const seenCandidates = new Set<string>();
 
@@ -574,12 +581,14 @@ export async function searchIpasByName(params: {
       failedCount,
       searchedChannels,
       groupKey: targetGroupKey,
+      batchesScanned: 0,
+      totalMessagesExamined: 0,
+      ipaFilesSeenInChannel: 0,
+      searchTerms: resolution.searchTerms,
     };
   }
 
   for (const [channelIndex, channelId] of scopedChannels.entries()) {
-    searchedChannels.push(channelId);
-
     await onProgress?.({
       label: buildProgressLabel({
         mode: resolution.mode,
@@ -604,6 +613,8 @@ export async function searchIpasByName(params: {
         continue;
       }
 
+      searchedChannels.push(channelId);
+
       const disabledTopicIds = await getDisabledTopicIds(channelId, client);
       let fromMessageId = 0;
       let batchesScanned = 0;
@@ -624,6 +635,12 @@ export async function searchIpasByName(params: {
         }
 
         batchesScanned++;
+        totalBatchesScanned++;
+        totalMessagesExamined += messages.length;
+
+        // Count IPA files in this batch (regardless of search term match)
+        const batchIpaCount = messages.filter(isIpaMessage).length;
+        totalIpaFilesSeen += batchIpaCount;
 
         await onProgress?.({
           label: buildProgressLabel({
@@ -779,6 +796,10 @@ export async function searchIpasByName(params: {
     failedCount,
     searchedChannels,
     groupKey: targetGroupKey,
+    batchesScanned: totalBatchesScanned,
+    totalMessagesExamined,
+    ipaFilesSeenInChannel: totalIpaFilesSeen,
+    searchTerms: resolution.searchTerms,
   });
 
   return {
@@ -794,5 +815,9 @@ export async function searchIpasByName(params: {
     failedCount,
     searchedChannels,
     groupKey: targetGroupKey,
+    batchesScanned: totalBatchesScanned,
+    totalMessagesExamined,
+    ipaFilesSeenInChannel: totalIpaFilesSeen,
+    searchTerms: resolution.searchTerms,
   };
 }
