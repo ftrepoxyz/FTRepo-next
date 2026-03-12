@@ -13,6 +13,15 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuShortcut,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -172,9 +181,21 @@ function Checkbox({ checked, onChange, className }: {
 }
 
 const PAGE_SIZE_OPTIONS = [20, 50, 100];
+const STATUS_OPTIONS = [
+  { value: "pending", label: "Pending" },
+  { value: "downloading", label: "Downloading" },
+  { value: "processing", label: "Processing" },
+  { value: "completed", label: "Completed" },
+  { value: "failed", label: "Failed" },
+  { value: "skipped", label: "Skipped" },
+] as const;
+
+type QueueStatus = (typeof STATUS_OPTIONS)[number]["value"];
+type QueueStats = Partial<Record<QueueStatus, number>>;
 
 export function QueueTable() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [removingStatus, setRemovingStatus] = useState<QueueStatus | null>(null);
   const [search, setSearch] = useUrlState("search");
   const [statusFilter, setStatusFilter] = useUrlState("status");
   const [channelFilter, setChannelFilter] = useUrlState("channel");
@@ -209,9 +230,13 @@ export function QueueTable() {
 
   const { data, refresh } = usePolling(fetcher, 10000);
   const items: QueueEntry[] = data?.data || [];
-  const stats = data?.stats || {};
+  const stats: QueueStats = data?.stats || {};
   const totalPages: number = data?.totalPages || 1;
   const channels: string[] = data?.channels || [];
+  const removableStatusCount = STATUS_OPTIONS.reduce(
+    (total, status) => total + (stats[status.value] ?? 0),
+    0,
+  );
 
   const handleRetry = async (id: number) => {
     await fetch("/api/queue/retry", {
@@ -227,14 +252,54 @@ export function QueueTable() {
     const ids = Array.from(selectedIds);
     if (ids.length === 0) return;
 
-    await fetch("/api/queue/batch", {
+    const res = await fetch("/api/queue/batch", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action, ids }),
     });
-    toast.success(`${action} applied to ${ids.length} items`);
+    const data = await res.json();
+
+    if (!res.ok || !data.success) {
+      toast.error(data.error || `Unable to ${action} selected items`);
+      return;
+    }
+
+    toast.success(data.message || `${action} applied to ${ids.length} items`);
     setSelectedIds(new Set());
     refresh();
+  };
+
+  const handleRemoveAllByStatus = async (status: QueueStatus, label: string) => {
+    const count = stats[status] ?? 0;
+    if (count === 0 || removingStatus) return;
+
+    const confirmed = window.confirm(
+      `Remove all ${count} ${label.toLowerCase()} item${count === 1 ? "" : "s"} from the queue?`,
+    );
+
+    if (!confirmed) return;
+
+    setRemovingStatus(status);
+
+    try {
+      const res = await fetch("/api/queue/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "delete", status }),
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        toast.error(data.error || `Unable to remove ${label.toLowerCase()} items`);
+        return;
+      }
+
+      toast.success(data.message || `Removed ${count} ${label.toLowerCase()} items`);
+      setSelectedIds(new Set());
+      refresh();
+    } finally {
+      setRemovingStatus(null);
+    }
   };
 
   const toggleSelect = (id: number) => {
@@ -292,12 +357,11 @@ export function QueueTable() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All statuses</SelectItem>
-            <SelectItem value="pending">Pending</SelectItem>
-            <SelectItem value="downloading">Downloading</SelectItem>
-            <SelectItem value="processing">Processing</SelectItem>
-            <SelectItem value="completed">Completed</SelectItem>
-            <SelectItem value="failed">Failed</SelectItem>
-            <SelectItem value="skipped">Skipped</SelectItem>
+            {STATUS_OPTIONS.map((status) => (
+              <SelectItem key={status.value} value={status.value}>
+                {status.label}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
         <Select
@@ -318,6 +382,34 @@ export function QueueTable() {
             ))}
           </SelectContent>
         </Select>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              size="sm"
+              variant="destructive"
+              disabled={removableStatusCount === 0 || removingStatus !== null}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              {removingStatus ? "Removing..." : "Remove All..."}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuLabel>Remove queue items by status</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {STATUS_OPTIONS.map((status) => (
+              <DropdownMenuItem
+                key={status.value}
+                variant="destructive"
+                disabled={(stats[status.value] ?? 0) === 0 || removingStatus !== null}
+                onClick={() => handleRemoveAllByStatus(status.value, status.label)}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Remove all {status.label.toLowerCase()}
+                <DropdownMenuShortcut>{stats[status.value] ?? 0}</DropdownMenuShortcut>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2">

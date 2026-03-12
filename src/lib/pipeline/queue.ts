@@ -137,15 +137,17 @@ export async function getQueueStats(): Promise<{
   processing: number;
   completed: number;
   failed: number;
+  skipped: number;
 }> {
-  const [pending, downloading, processing, completed, failed] =
+  const [pending, downloading, processing, completed, failed, skipped] =
     await Promise.all([
       prisma.processedMessage.count({ where: { status: "pending", hasIpa: true } }),
       prisma.processedMessage.count({ where: { status: "downloading" } }),
       prisma.processedMessage.count({ where: { status: "processing" } }),
       prisma.processedMessage.count({ where: { status: "completed" } }),
       prisma.processedMessage.count({ where: { status: "failed" } }),
+      prisma.processedMessage.count({ where: { status: "skipped" } }),
     ]);
 
-  return { pending, downloading, processing, completed, failed };
+  return { pending, downloading, processing, completed, failed, skipped };
 }
