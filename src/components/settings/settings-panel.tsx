@@ -29,6 +29,7 @@ import { toast } from "sonner";
 import {
   Scan,
   History,
+  Search,
   FileJson,
   Trash2,
   Database,
@@ -95,6 +96,29 @@ const DEFAULT_TELEGRAM_AUTH: TelegramStatusSnapshot = {
   lastAuthAt: null,
   workerOnline: false,
 };
+
+interface SearchIpaCommandResult {
+  outcome: "completed" | "partial" | "not_found";
+  query: string;
+  mode: "known_tweak" | "generic";
+  resolvedTweakName: string | null;
+  lockedChannelId: string | null;
+  targetVersions: number;
+  distinctVersionsPresent: number;
+  importedCount: number;
+  alreadyPresentCount: number;
+  failedCount: number;
+  searchedChannels: string[];
+  groupKey: string | null;
+}
+
+interface TelegramCommandSnapshot {
+  id: number;
+  type: string;
+  status: "pending" | "running" | "completed" | "failed";
+  result: SearchIpaCommandResult | null;
+  error: string | null;
+}
 
 function UnsavedBanner({
   show,
@@ -278,6 +302,10 @@ export function SettingsPanel() {
   const [authLoading, setAuthLoading] = useState(false);
   const [githubBranches, setGithubBranches] = useState<string[]>([]);
   const [branchesLoading, setBranchesLoading] = useState(false);
+  const [findIpaQuery, setFindIpaQuery] = useState("");
+  const [findIpaSubmitting, setFindIpaSubmitting] = useState(false);
+  const [pendingSearchCommandId, setPendingSearchCommandId] = useState<number | null>(null);
+  const completedSearchCommandIdsRef = useRef<Set<number>>(new Set());
 
   const fetchBranches = useCallback(async () => {
     setBranchesLoading(true);
@@ -410,6 +438,87 @@ export function SettingsPanel() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  const showSearchIpaResultToast = useCallback(
+    (result: SearchIpaCommandResult) => {
+      const scope =
+        result.mode === "known_tweak" && result.lockedChannelId
+          ? ` from ${result.lockedChannelId}`
+          : "";
+      const summary = `"${result.query}"${scope}: ${result.distinctVersionsPresent}/${result.targetVersions} version(s) ready`;
+
+      if (result.outcome === "completed") {
+        toast.success(summary);
+        return;
+      }
+
+      if (result.outcome === "partial") {
+        toast.info(
+          `${summary}. Imported ${result.importedCount}, already had ${result.alreadyPresentCount}.`
+        );
+        return;
+      }
+
+      toast.error(`No importable IPA versions found for "${result.query}".`);
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (
+      telegramAuth.currentCommandType === "search_ipa" &&
+      telegramAuth.currentCommandId
+    ) {
+      setPendingSearchCommandId(telegramAuth.currentCommandId);
+    }
+  }, [telegramAuth.currentCommandId, telegramAuth.currentCommandType]);
+
+  useEffect(() => {
+    if (!pendingSearchCommandId) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const pollCommand = async () => {
+      try {
+        const res = await fetch(`/api/telegram/commands/${pendingSearchCommandId}`, {
+          cache: "no-store",
+        });
+        const data = await res.json();
+        if (!data.success || cancelled) {
+          return;
+        }
+
+        const command = data.data as TelegramCommandSnapshot;
+        if (command.status === "completed" || command.status === "failed") {
+          if (!completedSearchCommandIdsRef.current.has(command.id)) {
+            completedSearchCommandIdsRef.current.add(command.id);
+            if (command.status === "completed" && command.result) {
+              showSearchIpaResultToast(command.result);
+            } else {
+              toast.error(command.error || "IPA backfill failed");
+            }
+          }
+
+          setPendingSearchCommandId(null);
+          loadTelegramAuth();
+        }
+      } catch {
+        // ignore transient polling errors
+      }
+    };
+
+    void pollCommand();
+    const interval = setInterval(() => {
+      void pollCommand();
+    }, 2_000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [pendingSearchCommandId, loadTelegramAuth, showSearchIpaResultToast]);
 
   const [expandedForums, setExpandedForums] = useState<Set<string>>(new Set());
   const [refreshingTopics, setRefreshingTopics] = useState<Set<string>>(new Set());
@@ -664,6 +773,34 @@ export function SettingsPanel() {
     }
   };
 
+  const runFindIpa = async () => {
+    const query = findIpaQuery.trim();
+    if (!query) return;
+
+    setFindIpaSubmitting(true);
+    try {
+      const res = await fetch("/api/actions/find-ipa", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query }),
+      });
+      const data = await res.json();
+
+      if (!data.success) {
+        toast.error(data.error || "Failed to queue IPA backfill");
+        return;
+      }
+
+      setPendingSearchCommandId(data.commandId);
+      toast.success(data.message || `IPA backfill queued for "${query}".`);
+      loadTelegramAuth();
+    } catch {
+      toast.error("Failed to queue IPA backfill");
+    } finally {
+      setFindIpaSubmitting(false);
+    }
+  };
+
   if (loading) {
     return <div className="animate-pulse space-y-4">
       {Array.from({ length: 3 }).map((_, i) => (
@@ -679,6 +816,15 @@ export function SettingsPanel() {
       ? Math.min(
           100,
           Math.round((scanPreviousProgressCurrent / scanPreviousProgressTotal) * 100)
+        )
+      : 0;
+  const searchIpaProgressCurrent = telegramAuth.progressCurrent ?? 0;
+  const searchIpaProgressTotal = telegramAuth.progressTotal ?? 0;
+  const searchIpaProgressValue =
+    searchIpaProgressTotal > 0
+      ? Math.min(
+          100,
+          Math.round((searchIpaProgressCurrent / searchIpaProgressTotal) * 100)
         )
       : 0;
 
@@ -1543,6 +1689,63 @@ export function SettingsPanel() {
             <CardTitle>Scraper</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="rounded-lg border p-4">
+              <div className="space-y-2">
+                <Label htmlFor="find-ipa-query">Find IPA By Name</Label>
+                <p className="text-xs text-muted-foreground">
+                  Searches Telegram history for the latest versions that match your query, using known tweak aliases and locked channels when configured.
+                </p>
+              </div>
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                <Input
+                  id="find-ipa-query"
+                  placeholder="e.g. Reddit"
+                  value={findIpaQuery}
+                  onChange={(e) => setFindIpaQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      void runFindIpa();
+                    }
+                  }}
+                  disabled={findIpaSubmitting || telegramAuth.currentCommandType === "search_ipa"}
+                />
+                <Button
+                  className="sm:w-auto"
+                  onClick={() => void runFindIpa()}
+                  disabled={
+                    !findIpaQuery.trim() ||
+                    findIpaSubmitting ||
+                    telegramAuth.currentCommandType === "search_ipa"
+                  }
+                >
+                  {findIpaSubmitting ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Search className="mr-2 h-4 w-4" />
+                  )}
+                  Find IPA
+                </Button>
+              </div>
+            </div>
+            {telegramAuth.busy && telegramAuth.currentCommandType === "search_ipa" && (
+              <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium">IPA backfill in progress</p>
+                    <p className="text-xs text-muted-foreground">
+                      {telegramAuth.progressLabel ||
+                        "Searching Telegram history and importing the latest matching versions..."}
+                    </p>
+                  </div>
+                  <div className="text-right text-xs text-muted-foreground">
+                    {searchIpaProgressTotal > 0
+                      ? `${searchIpaProgressCurrent}/${searchIpaProgressTotal} version(s)`
+                      : "Starting..."}
+                  </div>
+                </div>
+                <Progress value={searchIpaProgressValue} className="mt-3 h-2" />
+              </div>
+            )}
             {telegramAuth.busy && telegramAuth.currentCommandType === "scan_previous" && (
               <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 p-4">
                 <div className="flex items-start justify-between gap-3">

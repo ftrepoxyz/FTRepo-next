@@ -6,7 +6,14 @@ import { extractIpa } from "../ipa/extractor";
 import { cachePrivacyDescriptions } from "../ipa/privacy";
 import { getCachedLookup } from "../appstore/cache";
 import { uploadIpaToDailyRelease, deleteReleaseAsset } from "../github/releases";
-import { claimNextPending, markCompleted, markFailed, markSkipped } from "./queue";
+import {
+  claimNextPending,
+  claimPendingById,
+  markCompleted,
+  markFailed,
+  markSkipped,
+  type QueueEntry,
+} from "./queue";
 import { downloadIpaFromMessage } from "../telegram/downloader";
 import { getSettings } from "../config";
 import { enforceVersionLimit } from "../github/cleanup";
@@ -29,6 +36,28 @@ export async function processNextIpa(
   const entry = await claimNextPending();
   if (!entry) return false;
 
+  await processQueueEntry(entry, chatIdMap, client);
+  return true;
+}
+
+export async function processPendingIpaById(
+  id: number,
+  chatIdMap: Map<string, number>,
+  client: TdlClient
+): Promise<boolean> {
+  const entry = await claimPendingById(id);
+  if (!entry) return false;
+
+  await processQueueEntry(entry, chatIdMap, client);
+  return true;
+}
+
+async function processQueueEntry(
+  entry: QueueEntry,
+  chatIdMap: Map<string, number>,
+  client: TdlClient
+): Promise<void> {
+  
   let tempPath: string | null = null;
 
   try {
@@ -60,14 +89,14 @@ export async function processNextIpa(
 
     if (!chatId) {
       await markFailed(entry.id, `Unknown channel or missing file: ${entry.channelId}`);
-      return true;
+      return;
     }
 
     tempPath = await downloadIpaFromMessage(client, chatId, entry.messageId);
 
     if (!tempPath) {
       await markFailed(entry.id, `Unknown channel or missing file: ${entry.channelId}`);
-      return true;
+      return;
     }
 
     // Step 2: Extract IPA metadata
@@ -96,7 +125,7 @@ export async function processNextIpa(
         "process",
         `Skipped ${metadata.appName} from ${entry.channelId}: ${reason}`
       );
-      return true;
+      return;
     }
 
     // Step 4: App Store lookup
@@ -213,6 +242,4 @@ export async function processNextIpa(
       }
     }
   }
-
-  return true;
 }

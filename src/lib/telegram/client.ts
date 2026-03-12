@@ -139,6 +139,14 @@ export async function enqueueTelegramCommand(options: {
   return { command, created: true };
 }
 
+export async function getTelegramCommandById(
+  id: number
+): Promise<TelegramCommand | null> {
+  return prisma.telegramCommand.findUnique({
+    where: { id },
+  });
+}
+
 export async function claimNextTelegramCommand(
   owner: string
 ): Promise<TelegramCommand | null> {

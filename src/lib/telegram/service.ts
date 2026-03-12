@@ -20,6 +20,7 @@ import {
 import { scanChannel, scanChannelPrevious } from "./scanner";
 import { resolveChannelInfo } from "./channel-info";
 import { processNextIpa } from "../pipeline/orchestrator";
+import { searchIpasByName } from "./search-ipa";
 
 type PendingInputRequest = {
   resolve: (value: string) => void;
@@ -261,6 +262,38 @@ export class TelegramService {
           state: this.currentState,
           found: totalFound,
           target: totalTarget,
+        };
+      }
+      case "search_ipa": {
+        const client = await this.ensureOperationalClient();
+        const query = String(payload.query ?? "").trim();
+
+        if (!query) {
+          throw new Error("query is required");
+        }
+
+        const result = await searchIpasByName({
+          query,
+          client,
+          chatIdMap: this.chatIdMap,
+          onProgress: async (progress) => {
+            await this.setCommandProgress(
+              progress.label,
+              progress.current,
+              progress.total
+            );
+          },
+        });
+
+        await this.setCommandProgress(
+          `IPA search ${result.outcome}: ${result.distinctVersionsPresent}/${result.targetVersions} version(s) ready`,
+          result.distinctVersionsPresent,
+          result.targetVersions
+        );
+
+        return {
+          state: this.currentState,
+          ...result,
         };
       }
       case "refresh_topics": {

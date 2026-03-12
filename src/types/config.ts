@@ -105,6 +105,7 @@ export type TelegramCommandType =
   | "reset_session"
   | "scan_now"
   | "scan_previous"
+  | "search_ipa"
   | "refresh_topics"
   | "process_queue";
 

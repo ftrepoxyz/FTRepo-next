@@ -39,6 +39,39 @@ export async function claimNextPending(): Promise<QueueEntry | null> {
   });
 }
 
+export async function claimPendingById(id: number): Promise<QueueEntry | null> {
+  return prisma.$transaction(async (tx) => {
+    const pending = await tx.processedMessage.findUnique({
+      where: { id },
+    });
+
+    if (
+      !pending ||
+      !pending.hasIpa ||
+      (pending.status !== "pending" && pending.status !== "failed")
+    ) {
+      return null;
+    }
+
+    await tx.processedMessage.update({
+      where: { id },
+      data: {
+        status: "downloading",
+        error: null,
+      },
+    });
+
+    return {
+      id: pending.id,
+      channelId: pending.channelId,
+      messageId: Number(pending.messageId),
+      fileName: pending.fileName || "unknown.ipa",
+      fileSize: pending.fileSize || BigInt(0),
+      messageText: pending.messageText || null,
+    };
+  });
+}
+
 /**
  * Mark a queue entry as completed.
  */
