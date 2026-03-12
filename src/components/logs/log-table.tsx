@@ -135,12 +135,15 @@ function SortHeader({ label, field, sortBy, sortOrder, onSort }: {
   );
 }
 
+const PAGE_SIZE_OPTIONS = [20, 50, 100];
+
 export function LogTable() {
   const [search, setSearch] = useUrlState("search");
   const [typeFilter, setTypeFilter] = useUrlState("type");
   const [statusFilter, setStatusFilter] = useUrlState("status");
   const [selectedLog, setSelectedLog] = useState<ActivityEntry | null>(null);
   const [page, setPage] = useUrlNumberState("page", 1);
+  const [pageSize, setPageSize] = useUrlNumberState("pageSize", 20);
   const [sortBy, setSortBy] = useUrlState("sortBy", "createdAt") as [SortField, (v: string) => void];
   const [sortOrder, setSortOrder] = useUrlState("sortOrder", "desc") as ["asc" | "desc", (v: string) => void];
 
@@ -157,7 +160,7 @@ export function LogTable() {
   const fetcher = useCallback(async () => {
     const params = new URLSearchParams({
       page: String(page),
-      pageSize: "20",
+      pageSize: String(pageSize),
       sortBy,
       sortOrder,
       ...(search && { search }),
@@ -166,7 +169,7 @@ export function LogTable() {
     });
     const res = await fetch(`/api/dashboard/activity?${params}`);
     return res.json();
-  }, [page, search, typeFilter, statusFilter, sortBy, sortOrder]);
+  }, [page, pageSize, search, typeFilter, statusFilter, sortBy, sortOrder]);
 
   const { data } = usePolling(fetcher, 10000);
   const items: ActivityEntry[] = data?.data || [];
@@ -223,6 +226,24 @@ export function LogTable() {
             <SelectItem value="success">Success</SelectItem>
             <SelectItem value="warning">Warning</SelectItem>
             <SelectItem value="error">Error</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select
+          value={String(pageSize)}
+          onValueChange={(v) => {
+            setPageSize(Number(v));
+            setPage(1);
+          }}
+        >
+          <SelectTrigger size="sm" className="w-[140px]">
+            <SelectValue placeholder="Entries" />
+          </SelectTrigger>
+          <SelectContent>
+            {PAGE_SIZE_OPTIONS.map((option) => (
+              <SelectItem key={option} value={String(option)}>
+                {option} per page
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>

@@ -203,7 +203,7 @@ function Checkbox({
   );
 }
 
-const GROUPS_PER_PAGE = 15;
+const PAGE_SIZE_OPTIONS = [15, 30, 50, 100];
 
 export function LibraryTable() {
   const [allItems, setAllItems] = useState<LibraryEntry[]>([]);
@@ -215,6 +215,7 @@ export function LibraryTable() {
   const [tweakedFilter, setTweakedFilter] = useState("");
   const [channelFilter, setChannelFilter] = useState("");
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(15);
   const [sortBy, setSortBy] = useState<SortField>("appName");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
 
@@ -309,12 +310,12 @@ export function LibraryTable() {
     pendingRenames,
   ]);
 
-  const totalPages = Math.max(1, Math.ceil(groups.length / GROUPS_PER_PAGE));
-  const pageGroups = groups.slice((page - 1) * GROUPS_PER_PAGE, page * GROUPS_PER_PAGE);
+  const totalPages = Math.max(1, Math.ceil(groups.length / pageSize));
+  const pageGroups = groups.slice((page - 1) * pageSize, page * pageSize);
 
   useEffect(() => {
     setPage(1);
-  }, [search, tweakedFilter, channelFilter]);
+  }, [search, tweakedFilter, channelFilter, pageSize]);
 
   const handleSort = (field: SortField) => {
     if (field === sortBy) setSortOrder(sortOrder === "asc" ? "desc" : "asc");
@@ -559,6 +560,21 @@ export function LibraryTable() {
             <SelectItem value="all">All types</SelectItem>
             <SelectItem value="true">Tweaked</SelectItem>
             <SelectItem value="false">Stock</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select
+          value={String(pageSize)}
+          onValueChange={(value) => setPageSize(Number(value))}
+        >
+          <SelectTrigger size="sm" className="w-[140px]">
+            <SelectValue placeholder="Entries" />
+          </SelectTrigger>
+          <SelectContent>
+            {PAGE_SIZE_OPTIONS.map((option) => (
+              <SelectItem key={option} value={String(option)}>
+                {option} per page
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
         <Button variant="outline" size="sm" onClick={fetchLibrary} disabled={fetching || applying}>

@@ -171,12 +171,15 @@ function Checkbox({ checked, onChange, className }: {
   );
 }
 
+const PAGE_SIZE_OPTIONS = [20, 50, 100];
+
 export function QueueTable() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [search, setSearch] = useUrlState("search");
   const [statusFilter, setStatusFilter] = useUrlState("status");
   const [channelFilter, setChannelFilter] = useUrlState("channel");
   const [page, setPage] = useUrlNumberState("page", 1);
+  const [pageSize, setPageSize] = useUrlNumberState("pageSize", 20);
   const [sortBy, setSortBy] = useUrlState("sortBy", "createdAt") as [SortField, (v: string) => void];
   const [sortOrder, setSortOrder] = useUrlState("sortOrder", "desc") as ["asc" | "desc", (v: string) => void];
 
@@ -193,7 +196,7 @@ export function QueueTable() {
   const fetcher = useCallback(async () => {
     const params = new URLSearchParams({
       page: String(page),
-      pageSize: "20",
+      pageSize: String(pageSize),
       sortBy,
       sortOrder,
       ...(search && { search }),
@@ -202,7 +205,7 @@ export function QueueTable() {
     });
     const res = await fetch(`/api/queue?${params}`);
     return res.json();
-  }, [page, search, statusFilter, channelFilter, sortBy, sortOrder]);
+  }, [page, pageSize, search, statusFilter, channelFilter, sortBy, sortOrder]);
 
   const { data, refresh } = usePolling(fetcher, 10000);
   const items: QueueEntry[] = data?.data || [];
@@ -295,6 +298,24 @@ export function QueueTable() {
             <SelectItem value="completed">Completed</SelectItem>
             <SelectItem value="failed">Failed</SelectItem>
             <SelectItem value="skipped">Skipped</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select
+          value={String(pageSize)}
+          onValueChange={(v) => {
+            setPageSize(Number(v));
+            setPage(1);
+          }}
+        >
+          <SelectTrigger size="sm" className="w-[140px]">
+            <SelectValue placeholder="Entries" />
+          </SelectTrigger>
+          <SelectContent>
+            {PAGE_SIZE_OPTIONS.map((option) => (
+              <SelectItem key={option} value={String(option)}>
+                {option} per page
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
